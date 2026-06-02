@@ -481,8 +481,8 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
                   <span className="text-xs text-rose-500">F {Math.round(entry.fat_g ?? 0)}g</span>
                 </div>
               </div>
-              <button onClick={() => onEdit(entry)} className="text-gray-300 hover:text-brand-500 text-sm px-1 mt-1 shrink-0">✎</button>
-              <button onClick={() => onDelete(entry.id)} className="text-gray-300 hover:text-red-400 text-base leading-none mt-1 shrink-0">×</button>
+              <button onClick={() => onEdit(entry)} className="text-brand-400 hover:text-brand-600 text-base px-1 mt-0.5 shrink-0">✎</button>
+              <button onClick={() => onDelete(entry.id)} className="text-red-400 hover:text-red-600 text-xl leading-none mt-0.5 shrink-0">×</button>
             </li>
           ))}
         </ul>
