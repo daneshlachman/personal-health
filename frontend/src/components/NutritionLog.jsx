@@ -393,6 +393,8 @@ function EditEntryModal({ entry, onClose, onSaved }) {
 }
 
 function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const total = entries.reduce(
     (acc, e) => ({
       calories: acc.calories + (e.calories || 0),
@@ -411,14 +413,26 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
         </span>
         <div className="flex items-center gap-2">
           {entries.length > 0 && <span className="text-xs text-gray-400">{Math.round(total.calories)} kcal</span>}
-          <button
-            onClick={onAdd}
-            className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M6 1v10M1 6h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen(o => !o)}
+              className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M6 1v10M1 6h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-8 z-20 bg-white rounded-xl shadow-lg border border-gray-100 py-1 w-36" onClick={() => setMenuOpen(false)}>
+                <button onClick={onQuickLog} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                  <span>✦</span> Log with AI
+                </button>
+                <button onClick={onAdd} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                  <span>🔍</span> Manual
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -444,6 +458,13 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Always show AI log button at bottom */}
+      {entries.length > 0 && (
+        <button onClick={onQuickLog} className="w-full px-4 py-2.5 text-left border-t border-gray-50 hover:bg-gray-50 transition-colors">
+          <p className="text-xs text-gray-400">✦ Describe what you ate…</p>
+        </button>
       )}
 
       {entries.length > 1 && (
