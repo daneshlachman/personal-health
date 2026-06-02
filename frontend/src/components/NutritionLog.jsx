@@ -315,7 +315,7 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   // Extract amount + unit from description e.g. "250g kippendijen" → {amount: 250, unit: "g", base: "kippendijen"}
-  const amountMatch = entry.description.match(/^(\d+(?:[.,]\d+)?)\s*(g|ml|kg|l|stuks?|x)\b/i);
+  const amountMatch = entry.description.match(/(\d+(?:[.,]\d+)?)\s*(g|ml|kg|l)\b/i);
   const [amount, setAmount] = useState(amountMatch ? amountMatch[1] : "");
   const baseAmount = amountMatch ? parseFloat(amountMatch[1].replace(",", ".")) : null;
   const unit = amountMatch ? amountMatch[2] : "";
