@@ -49,6 +49,22 @@ def post_nutrition():
     return jsonify(log.to_dict()), 201
 
 
+@nutrition_bp.route("/nutrition/log-ai", methods=["POST"])
+def log_ai():
+    user = _ensure_user()
+    body = request.get_json(silent=True) or {}
+    description = body.get("description", "").strip()
+    date_str = body.get("date", date.today().isoformat())
+    meal_type = body.get("meal_type")
+
+    if not description:
+        return jsonify({"error": "description required"}), 400
+
+    from app.services.claude import log_food_quick
+    entries = log_food_quick(description, meal_type, date_str, user.id)
+    return jsonify({"entries": [e.to_dict() for e in entries], "count": len(entries)})
+
+
 @nutrition_bp.route("/nutrition/<log_id>", methods=["PUT"])
 def update_nutrition(log_id):
     user = _ensure_user()
@@ -70,19 +86,3 @@ def delete_nutrition(log_id):
     db.session.delete(log)
     db.session.commit()
     return jsonify({"deleted": log_id})
-
-
-@nutrition_bp.route("/nutrition/log-ai", methods=["POST"])
-def log_ai():
-    user = _ensure_user()
-    body = request.get_json(silent=True) or {}
-    description = body.get("description", "").strip()
-    date_str = body.get("date", date.today().isoformat())
-    meal_type = body.get("meal_type")
-
-    if not description:
-        return jsonify({"error": "description required"}), 400
-
-    from app.services.claude import log_food_quick
-    entries = log_food_quick(description, meal_type, date_str, user.id)
-    return jsonify({"entries": [e.to_dict() for e in entries], "count": len(entries)})
