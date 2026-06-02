@@ -261,7 +261,8 @@ function MealSection({ meal, entries, onDelete, onAdd }) {
           {entries.length > 0 && <span className="text-xs text-gray-400">{Math.round(total.calories)} kcal</span>}
           <button
             onClick={onAdd}
-            className="w-7 h-7 flex items-center justify-center rounded-full bg-brand-500 text-white text-lg leading-none hover:bg-brand-600 transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+            style={{ fontSize: 20, lineHeight: 1, paddingBottom: 1 }}
           >
             +
           </button>
