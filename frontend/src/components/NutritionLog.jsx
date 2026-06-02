@@ -262,9 +262,8 @@ function MealSection({ meal, entries, onDelete, onAdd }) {
           <button
             onClick={onAdd}
             className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors"
-            style={{ fontSize: 20, lineHeight: 1, paddingBottom: 1 }}
           >
-            +
+            <span style={{ fontSize: 18, lineHeight: 1, transform: 'translateY(-1px)', display: 'block' }}>+</span>
           </button>
         </div>
       </div>
