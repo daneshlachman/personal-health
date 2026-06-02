@@ -263,7 +263,9 @@ function MealSection({ meal, entries, onDelete, onAdd }) {
             onClick={onAdd}
             className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors"
           >
-            <span style={{ fontSize: 18, lineHeight: 1, transform: 'translateY(-1px)', display: 'block' }}>+</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v10M1 6h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
           </button>
         </div>
       </div>
