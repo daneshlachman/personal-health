@@ -472,9 +472,9 @@ export default function Dashboard({ onNavigate }) {
             ))}
             <button
               onClick={() => setAddingWeight(true)}
-              className="w-7 h-7 flex items-center justify-center rounded-full bg-brand-500 text-white text-lg font-light hover:bg-brand-600 transition-colors ml-1"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors ml-1"
             >
-              +
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
           </div>
         </div>

@@ -459,7 +459,9 @@ export default function WeightHistory({ onBack }) {
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Entries</span>
-            <button onClick={() => setModalEntry(null)} className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500 text-white text-base leading-none hover:bg-brand-600 transition-colors">+</button>
+            <button onClick={() => setModalEntry(null)} className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+            </button>
           </div>
           <ul className="divide-y divide-gray-50">
             {[...rows].reverse().map(r => {
