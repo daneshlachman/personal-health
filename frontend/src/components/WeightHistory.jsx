@@ -14,6 +14,7 @@ const PERIODS = [
   { label: "3M", days: 90 },
   { label: "6M", days: 180 },
   { label: "1Y", days: 365 },
+  { label: "All time", days: 3650 },
 ];
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -274,6 +275,7 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
 
 export default function WeightHistory({ onBack }) {
   const [days, setDays] = useState(7);
+  const [periodOpen, setPeriodOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalEntry, setModalEntry] = useState(undefined); // undefined=closed, null=new, obj=edit
@@ -326,13 +328,24 @@ export default function WeightHistory({ onBack }) {
       <div className="flex items-center gap-3">
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-xl">←</button>
         <h1 className="text-xl font-bold text-gray-900 flex-1">Weight</h1>
-        <div className="flex gap-1">
-          {PERIODS.map(({ label, days: d }) => (
-            <button key={d} onClick={() => setDays(d)}
-              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${days === d ? "bg-brand-500 text-white" : "text-gray-400 hover:text-gray-600"}`}>
-              {label}
-            </button>
-          ))}
+        <div className="relative">
+          <button
+            onClick={() => setPeriodOpen(o => !o)}
+            className="flex items-center gap-1.5 text-xs font-medium bg-brand-500 text-white px-3 py-1.5 rounded-lg"
+          >
+            {PERIODS.find(p => p.days === days)?.label ?? "1W"}
+            <span className="text-[10px] opacity-75">▾</span>
+          </button>
+          {periodOpen && (
+            <div className="absolute right-0 top-8 z-20 bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-[90px]">
+              {PERIODS.map(({ label, days: d }) => (
+                <button key={d} onClick={() => { setDays(d); setPeriodOpen(false); }}
+                  className={`w-full text-left px-4 py-1.5 text-sm hover:bg-gray-50 transition-colors ${days === d ? "text-brand-500 font-semibold" : "text-gray-700"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
