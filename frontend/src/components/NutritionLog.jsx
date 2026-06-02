@@ -406,8 +406,8 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
   );
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+    <div className="bg-white rounded-2xl shadow-sm">
+      <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex justify-between items-center rounded-t-2xl">
         <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
           {MEAL_LABELS[meal] || meal}
         </span>
