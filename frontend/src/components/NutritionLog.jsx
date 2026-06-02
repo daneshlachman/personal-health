@@ -135,7 +135,7 @@ function FoodSearchModal({ meal, date, onClose, onSaved }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search food…"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             {searching && <p className="text-xs text-gray-400 mt-3 text-center">Searching…</p>}
             {!searching && query.length >= 2 && results.length === 0 && (
@@ -172,7 +172,7 @@ function FoodSearchModal({ meal, date, onClose, onSaved }) {
                 type="number"
                 value={grams}
                 onChange={(e) => setGrams(e.target.value)}
-                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-base text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <span className="text-sm text-gray-400">g</span>
             </div>
