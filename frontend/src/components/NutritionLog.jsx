@@ -308,11 +308,35 @@ function QuickLogModal({ meal, date, onClose, onSaved }) {
 }
 
 function EditEntryModal({ entry, onClose, onSaved }) {
-  const [kcal, setKcal] = useState(String(entry.calories ?? ""));
-  const [protein, setProtein] = useState(String(entry.protein_g ?? ""));
-  const [carbs, setCarbs] = useState(String(entry.carbs_g ?? ""));
-  const [fat, setFat] = useState(String(entry.fat_g ?? ""));
+  const [kcal, setKcal] = useState(String(Math.round(entry.calories ?? 0)));
+  const [protein, setProtein] = useState(String(+(entry.protein_g ?? 0).toFixed(1)));
+  const [carbs, setCarbs] = useState(String(+(entry.carbs_g ?? 0).toFixed(1)));
+  const [fat, setFat] = useState(String(+(entry.fat_g ?? 0).toFixed(1)));
   const [saving, setSaving] = useState(false);
+
+  const fmt = (n) => String(+n.toFixed(1));
+
+  // Macro changed → recalculate kcal
+  const onMacro = (field, val, setter) => {
+    setter(val);
+    const p = field === "p" ? (parseFloat(val) || 0) : (parseFloat(protein) || 0);
+    const c = field === "c" ? (parseFloat(val) || 0) : (parseFloat(carbs) || 0);
+    const f = field === "f" ? (parseFloat(val) || 0) : (parseFloat(fat) || 0);
+    setKcal(String(Math.round(p * 4 + c * 4 + f * 9)));
+  };
+
+  // Kcal changed → scale macros proportionally
+  const onKcal = (val) => {
+    setKcal(val);
+    const newK = parseFloat(val) || 0;
+    const curK = (parseFloat(protein) || 0) * 4 + (parseFloat(carbs) || 0) * 4 + (parseFloat(fat) || 0) * 9;
+    if (curK > 0 && newK > 0) {
+      const ratio = newK / curK;
+      setProtein(fmt((parseFloat(protein) || 0) * ratio));
+      setCarbs(fmt((parseFloat(carbs) || 0) * ratio));
+      setFat(fmt((parseFloat(fat) || 0) * ratio));
+    }
+  };
 
   const save = () => {
     setSaving(true);
@@ -332,6 +356,8 @@ function EditEntryModal({ entry, onClose, onSaved }) {
       .finally(() => setSaving(false));
   };
 
+  const inputCls = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500";
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/20" onClick={onClose}>
       <div className="bg-white rounded-t-2xl w-full max-w-lg shadow-xl p-5 pb-10 space-y-4" onClick={e => e.stopPropagation()}>
@@ -340,15 +366,22 @@ function EditEntryModal({ entry, onClose, onSaved }) {
           <button onClick={onClose} className="text-gray-400 text-2xl leading-none">×</button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {[["Calories (kcal)", kcal, setKcal], ["Protein (g)", protein, setProtein],
-            ["Carbs (g)", carbs, setCarbs], ["Fat (g)", fat, setFat]].map(([label, val, set]) => (
-            <div key={label}>
-              <label className="text-xs text-gray-400 mb-1 block">{label}</label>
-              <input type="number" step="0.1" value={val} onChange={e => set(e.target.value)}
-                inputMode="decimal"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500" />
-            </div>
-          ))}
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Calories (kcal)</label>
+            <input type="number" inputMode="decimal" value={kcal} onChange={e => onKcal(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs text-blue-400 mb-1 block">Protein (g)</label>
+            <input type="number" inputMode="decimal" value={protein} onChange={e => onMacro("p", e.target.value, setProtein)} className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs text-amber-400 mb-1 block">Carbs (g)</label>
+            <input type="number" inputMode="decimal" value={carbs} onChange={e => onMacro("c", e.target.value, setCarbs)} className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs text-rose-400 mb-1 block">Fat (g)</label>
+            <input type="number" inputMode="decimal" value={fat} onChange={e => onMacro("f", e.target.value, setFat)} className={inputCls} />
+          </div>
         </div>
         <button onClick={save} disabled={saving}
           className="w-full bg-brand-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
