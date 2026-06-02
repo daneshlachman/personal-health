@@ -88,8 +88,8 @@ function CalendarMonth({ year, month, workoutsByDate, onDayClick, selectedDate }
               `}>
                 {day.getDate()}
               </span>
-              <span className="text-[11px] leading-none h-3">
-                {workouts.map((w) => workoutEmoji(w)).join("")}
+              <span className="text-sm leading-none flex gap-0.5">
+                {[...new Set(workouts.map(workoutEmoji))].map((e, i) => <span key={i}>{e}</span>)}
               </span>
             </button>
           );
