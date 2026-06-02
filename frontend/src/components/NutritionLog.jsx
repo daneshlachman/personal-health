@@ -240,7 +240,126 @@ function Ring({ value, goal, label, color, size = 80, showPct = true, unit = "" 
   );
 }
 
-function MealSection({ meal, entries, onDelete, onAdd }) {
+function QuickLogModal({ meal, date, onClose, onSaved }) {
+  const [text, setText] = useState("");
+  const [logging, setLogging] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  const log = async () => {
+    if (!text.trim()) return;
+    setLogging(true);
+    setStatus("logging");
+    try {
+      const r = await fetch(`${API}/api/nutrition/log-ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: text.trim(), date, meal_type: meal }),
+      });
+      const data = await r.json();
+      if (data.entries?.length) {
+        data.entries.forEach(e => onSaved(e));
+        setStatus("done");
+        setTimeout(onClose, 800);
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    } finally {
+      setLogging(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/20" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl w-full max-w-lg shadow-xl p-5 pb-10 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-700">What did you eat?</h2>
+          <button onClick={onClose} className="text-gray-400 text-2xl leading-none">×</button>
+        </div>
+        <textarea
+          autoFocus
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); log(); } }}
+          placeholder={`e.g. 100g oatmeal, 200ml milk, 30g whey protein myprotein`}
+          rows={3}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+        />
+        {status === "logging" && (
+          <p className="text-xs text-brand-500 text-center animate-pulse">⏳ Logging with AI…</p>
+        )}
+        {status === "done" && (
+          <p className="text-xs text-green-600 text-center">✓ Logged!</p>
+        )}
+        {status === "error" && (
+          <p className="text-xs text-red-500 text-center">Something went wrong, try again.</p>
+        )}
+        <button
+          onClick={log}
+          disabled={logging || !text.trim()}
+          className="w-full bg-brand-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40 hover:bg-brand-600 transition-colors"
+        >
+          {logging ? "Logging…" : "Log my food"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditEntryModal({ entry, onClose, onSaved }) {
+  const [kcal, setKcal] = useState(String(entry.calories ?? ""));
+  const [protein, setProtein] = useState(String(entry.protein_g ?? ""));
+  const [carbs, setCarbs] = useState(String(entry.carbs_g ?? ""));
+  const [fat, setFat] = useState(String(entry.fat_g ?? ""));
+  const [saving, setSaving] = useState(false);
+
+  const save = () => {
+    setSaving(true);
+    fetch(`${API}/api/nutrition/${entry.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        calories: parseFloat(kcal) || 0,
+        protein_g: parseFloat(protein) || 0,
+        carbs_g: parseFloat(carbs) || 0,
+        fat_g: parseFloat(fat) || 0,
+      }),
+    })
+      .then(r => r.json())
+      .then(updated => { onSaved(updated); onClose(); })
+      .catch(console.error)
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/20" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl w-full max-w-lg shadow-xl p-5 pb-10 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-700 truncate flex-1 mr-2">{entry.description}</h2>
+          <button onClick={onClose} className="text-gray-400 text-2xl leading-none">×</button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[["Calories (kcal)", kcal, setKcal], ["Protein (g)", protein, setProtein],
+            ["Carbs (g)", carbs, setCarbs], ["Fat (g)", fat, setFat]].map(([label, val, set]) => (
+            <div key={label}>
+              <label className="text-xs text-gray-400 mb-1 block">{label}</label>
+              <input type="number" step="0.1" value={val} onChange={e => set(e.target.value)}
+                inputMode="decimal"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+          ))}
+        </div>
+        <button onClick={save} disabled={saving}
+          className="w-full bg-brand-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
   const total = entries.reduce(
     (acc, e) => ({
       calories: acc.calories + (e.calories || 0),
@@ -271,9 +390,9 @@ function MealSection({ meal, entries, onDelete, onAdd }) {
       </div>
 
       {entries.length === 0 ? (
-        <div className="px-4 py-3">
-          <p className="text-xs text-gray-300">Nothing logged yet</p>
-        </div>
+        <button onClick={onQuickLog} className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+          <p className="text-xs text-gray-400">✦ Describe what you ate…</p>
+        </button>
       ) : (
         <ul className="divide-y divide-gray-50">
           {entries.map((entry) => (
@@ -287,12 +406,8 @@ function MealSection({ meal, entries, onDelete, onAdd }) {
                   <span className="text-xs text-rose-500">F {Math.round(entry.fat_g ?? 0)}g</span>
                 </div>
               </div>
-              <button
-                onClick={() => onDelete(entry.id)}
-                className="text-gray-300 hover:text-red-400 text-base leading-none mt-1 shrink-0"
-              >
-                ×
-              </button>
+              <button onClick={() => onEdit(entry)} className="text-gray-300 hover:text-brand-500 text-sm px-1 mt-1 shrink-0">✎</button>
+              <button onClick={() => onDelete(entry.id)} className="text-gray-300 hover:text-red-400 text-base leading-none mt-1 shrink-0">×</button>
             </li>
           ))}
         </ul>
@@ -317,7 +432,9 @@ export default function NutritionLog() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showKcal, setShowKcal] = useState(null);
-  const [addingTo, setAddingTo] = useState(null); // meal type or null
+  const [addingTo, setAddingTo] = useState(null);
+  const [quickLogMeal, setQuickLogMeal] = useState(null);
+  const [editEntry, setEditEntry] = useState(null);
 
   const toggleMacro = (macro) => setShowKcal(prev => prev === macro ? null : macro);
 
@@ -366,6 +483,14 @@ export default function NutritionLog() {
       const updated = [...prev, entry];
       setCache(`nutrition_${date}`, updated);
       return updated;
+    });
+  };
+
+  const handleUpdated = (updated) => {
+    setLogs((prev) => {
+      const next = prev.map(l => l.id === updated.id ? updated : l);
+      setCache(`nutrition_${date}`, next);
+      return next;
     });
   };
 
@@ -440,6 +565,8 @@ export default function NutritionLog() {
             entries={byMeal[meal]}
             onDelete={handleDelete}
             onAdd={() => setAddingTo(meal)}
+            onEdit={(entry) => setEditEntry(entry)}
+            onQuickLog={() => setQuickLogMeal(meal)}
           />
         ))
       )}
@@ -450,6 +577,23 @@ export default function NutritionLog() {
           date={date}
           onClose={() => setAddingTo(null)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {quickLogMeal && (
+        <QuickLogModal
+          meal={quickLogMeal}
+          date={date}
+          onClose={() => setQuickLogMeal(null)}
+          onSaved={handleSaved}
+        />
+      )}
+
+      {editEntry && (
+        <EditEntryModal
+          entry={editEntry}
+          onClose={() => setEditEntry(null)}
+          onSaved={handleUpdated}
         />
       )}
     </div>

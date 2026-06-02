@@ -258,6 +258,70 @@ Respond in the same language the user writes in. Be concise and data-driven."""
             return "\n".join(b.text for b in text_blocks) if text_blocks else ""
 
 
+def log_food_quick(description: str, meal_type_hint: str, target_date_str: str, user_id: str) -> list:
+    """Lightweight food logging — no history, no health context, just food extraction."""
+    client = anthropic.Anthropic(api_key=current_app.config["ANTHROPIC_API_KEY"])
+    tools = [WEB_SEARCH_TOOL] if _is_branded_food(description) else []
+    meal_hint = f"The meal type is {meal_type_hint}. " if meal_type_hint else ""
+
+    system = f"""{meal_hint}Extract all food items and output ONLY a JSON array:
+```json
+[{{"log_nutrition": true, "meal_type": "lunch", "description": "100g havermout", "calories": 362, "protein_g": 12.0, "carbs_g": 58.0, "fat_g": 7.0}}]
+```
+Rules: one entry per food item, NEVO nutritional values, calories ≈ protein*4 + carbs*4 + fat*9, use web search for branded products, output ONLY the JSON array."""
+
+    messages = [{"role": "user", "content": description}]
+    text = ""
+    while True:
+        response = client.messages.create(
+            model=MODEL, max_tokens=1024, system=system, tools=tools, messages=messages,
+        )
+        text_blocks = [b for b in response.content if hasattr(b, "text") and b.text]
+        if response.stop_reason == "end_turn":
+            text = "\n".join(b.text for b in text_blocks)
+            break
+        if response.stop_reason == "tool_use":
+            messages.append({"role": "assistant", "content": response.content})
+            tool_results = [{"type": "tool_result", "tool_use_id": b.id, "content": ""}
+                            for b in response.content if hasattr(b, "id") and b.type == "tool_use"]
+            if tool_results:
+                messages.append({"role": "user", "content": tool_results})
+        else:
+            text = "\n".join(b.text for b in text_blocks)
+            break
+
+    code_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', text, re.DOTALL)
+    bare_match = re.search(r'\[.*?\]', text, re.DOTALL)
+    raw = code_match.group(1) if code_match else (bare_match.group() if bare_match else None)
+    if not raw:
+        return []
+    try:
+        entries = json.loads(raw)
+    except Exception:
+        return []
+
+    target_date = date.fromisoformat(target_date_str) if isinstance(target_date_str, str) else target_date_str
+    saved = []
+    for item in (entries if isinstance(entries, list) else [entries]):
+        if not item.get("log_nutrition"):
+            continue
+        log = NutritionLog(
+            user_id=user_id,
+            date=target_date,
+            meal_type=item.get("meal_type", meal_type_hint),
+            description=item.get("description", ""),
+            calories=item.get("calories"),
+            protein_g=item.get("protein_g"),
+            carbs_g=item.get("carbs_g"),
+            fat_g=item.get("fat_g"),
+        )
+        db.session.add(log)
+        saved.append(log)
+    if saved:
+        db.session.commit()
+    return saved
+
+
 def extract_nutrition(user_id: str, assistant_reply: str, target_date: date = None) -> bool:
     """Parse nutrition JSON array (or single object) from Claude's reply and persist."""
     # Match array or single object inside a code block, or bare
