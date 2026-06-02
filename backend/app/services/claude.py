@@ -137,6 +137,21 @@ Today's Whoop: {whoop_str}
 Today's nutrition so far: {nutrition_str}
 {tdee_line}"""
 
+    # Nutrition history (last 7 days) — only when rich context needed
+    if rich:
+        nutrition_history_lines = []
+        for i in range(6, 0, -1):
+            d = today - timedelta(days=i)
+            logs = NutritionLog.query.filter_by(user_id=user_id, date=d).all()
+            if logs:
+                kcal = round(sum(n.calories or 0 for n in logs))
+                p    = round(sum(n.protein_g or 0 for n in logs))
+                c    = round(sum(n.carbs_g or 0 for n in logs))
+                f    = round(sum(n.fat_g or 0 for n in logs))
+                nutrition_history_lines.append(f"{d}: {kcal} kcal | P {p}g C {c}g F {f}g")
+        if nutrition_history_lines:
+            context += "\nNutrition last 7 days:\n" + "\n".join(nutrition_history_lines)
+
     # Workout details — only when relevant
     if rich:
         raw_workouts = (
