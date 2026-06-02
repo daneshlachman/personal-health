@@ -314,7 +314,29 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   const [fat, setFat] = useState(String(+(entry.fat_g ?? 0).toFixed(1)));
   const [saving, setSaving] = useState(false);
 
+  // Extract amount + unit from description e.g. "250g kippendijen" → {amount: 250, unit: "g", base: "kippendijen"}
+  const amountMatch = entry.description.match(/^(\d+(?:[.,]\d+)?)\s*(g|ml|kg|l|stuks?|x)\b/i);
+  const [amount, setAmount] = useState(amountMatch ? amountMatch[1] : "");
+  const baseAmount = amountMatch ? parseFloat(amountMatch[1].replace(",", ".")) : null;
+  const unit = amountMatch ? amountMatch[2] : "";
+
   const fmt = (n) => String(+n.toFixed(1));
+
+  // Amount changed → scale everything proportionally
+  const onAmount = (val) => {
+    setAmount(val);
+    const newA = parseFloat(val) || 0;
+    if (baseAmount && baseAmount > 0 && newA > 0) {
+      const ratio = newA / baseAmount;
+      const newP = (entry.protein_g ?? 0) * ratio;
+      const newC = (entry.carbs_g ?? 0) * ratio;
+      const newF = (entry.fat_g ?? 0) * ratio;
+      setProtein(fmt(newP));
+      setCarbs(fmt(newC));
+      setFat(fmt(newF));
+      setKcal(String(Math.round(newP * 4 + newC * 4 + newF * 9)));
+    }
+  };
 
   // Macro changed → recalculate kcal
   const onMacro = (field, val, setter) => {
@@ -365,6 +387,12 @@ function EditEntryModal({ entry, onClose, onSaved }) {
           <h2 className="text-sm font-semibold text-gray-700 truncate flex-1 mr-2">{entry.description}</h2>
           <button onClick={onClose} className="text-gray-400 text-2xl leading-none">×</button>
         </div>
+        {baseAmount && (
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Amount ({unit})</label>
+            <input type="number" inputMode="decimal" value={amount} onChange={e => onAmount(e.target.value)} className={inputCls} />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Calories (kcal)</label>
