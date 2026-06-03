@@ -285,7 +285,7 @@ function CalorieRow({ label, value, goal, barColor }: { label: string; value: nu
 
 const styles = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: colors.bg },
-  content:      { padding: spacing.lg, gap: spacing.md },
+  content:      { padding: spacing.lg, gap: spacing.md, paddingBottom: 32 },
   ringsCard:    { alignItems: 'center' },
   ringsGrid:    { flexDirection: 'row', flexWrap: 'wrap', width: '100%' },
   ringCell:     { width: '50%', alignItems: 'center', paddingVertical: spacing.md },
