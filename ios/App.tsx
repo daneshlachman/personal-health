@@ -10,6 +10,7 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import WeightHistoryScreen from './src/screens/WeightHistoryScreen';
 import CaloriesHistoryScreen from './src/screens/CaloriesHistoryScreen';
 import WhoopHistoryScreen from './src/screens/WhoopHistoryScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import NutritionScreen from './src/screens/NutritionScreen';
 import WorkoutsScreen from './src/screens/WorkoutsScreen';
 import ChatScreen from './src/screens/ChatScreen';
@@ -24,6 +25,7 @@ function DashboardStack() {
       <DashStack.Screen name="WeightHistory" component={WeightHistoryScreen} />
       <DashStack.Screen name="CaloriesHistory" component={CaloriesHistoryScreen} />
       <DashStack.Screen name="WhoopHistory" component={WhoopHistoryScreen} />
+      <DashStack.Screen name="Settings" component={SettingsScreen} />
     </DashStack.Navigator>
   );
 }
