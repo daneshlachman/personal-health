@@ -82,14 +82,17 @@ map.fitBounds(poly.getBounds(),{padding:[10,10]});
     );
   }
 
-  // Web fallback: SVG polyline
+  // Web fallback: SVG polyline met juiste aspect ratio
   const PAD = 16, W = width - PAD * 2, Hc = H - PAD * 2;
   const lats = points.map(p => p[0]), lons = points.map(p => p[1]);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLon = Math.min(...lons), maxLon = Math.max(...lons);
   const lr = maxLat - minLat || 0.001, lonr = maxLon - minLon || 0.001;
-  const px = (lon: number) => PAD + ((lon - minLon) / lonr) * W;
-  const py = (lat: number) => PAD + ((maxLat - lat) / lr) * Hc;
+  const scale = Math.min(W / lonr, Hc / lr);
+  const offX = (W - lonr * scale) / 2;
+  const offY = (Hc - lr * scale) / 2;
+  const px = (lon: number) => PAD + offX + (lon - minLon) * scale;
+  const py = (lat: number) => PAD + offY + (maxLat - lat) * scale;
   const polyline = points.map(p => `${px(p[1])},${py(p[0])}`).join(' ');
   return (
     <View style={{ borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.md, backgroundColor: '#dde3ea' }}>
