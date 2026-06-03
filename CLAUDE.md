@@ -230,32 +230,33 @@ export const radius  = { sm: 8, md: 12, lg: 16, xl: 20, full: 9999 }
 - `LineChart` component → `ios/src/components/LineChart.tsx` (custom SVG lijn chart)
 - **DashboardScreen** → Whoop rings + calorie kaarten (tappable → CaloriesHistory) + weight chart (tappable → WeightHistory)
 - **NutritionScreen** → calorie ring + 3 macro rings + maaltijdsecties met delete
-- **WorkoutsScreen** → maandkalender met emoji's, uitklapbare workout kaarten (Hevy sets/reps, Garmin stats), sync knop
+- **WorkoutsScreen** → maandkalender met emoji's, uitklapbare workout kaarten (Hevy sets/reps, Garmin stats), sync knop, deduplicatie (Hevy > Garmin > Whoop)
 - **ChatScreen** → berichtenbubbles, markdown rendering, cleanReply (JSON blocks weggehaald), datum nav
 - **WeightHistoryScreen** → KPI grid, lijn chart met periode knoppen, foto galerij (horizontaal), entries list met edit/delete/add modal
-- **CaloriesHistoryScreen** → KPI cards, burned + consumed charts, heatmap kalender 30 dagen
+- **CaloriesHistoryScreen** → KPI cards, heatmap kalender (klikbaar, deficit=groen/surplus=oranje), wekelijks staafdiagram
 - Stack navigatie voor Dashboard tab (DashboardMain → WeightHistory / CaloriesHistory)
 
 #### 📋 Nog te bouwen
-- WhoopHistoryScreen (recovery tab, sleep tab, charts)
-- FoodSearchModal in Nutrition (USDA + OpenFoodFacts zoeken, + knop per maaltijd)
-- HealthKit integratie (workouts, stappen lezen)
-- Foto upload in WeightHistory (camera + galerij kiezen)
-- Compare screen in WeightHistory (2 foto's naast elkaar)
-- Whoop sync knop op Dashboard
+- **WhoopHistoryScreen** — referentie: `frontend/src/components/WhoopHistory.jsx` (recovery tab + sleep tab, KPI grid, LineCharts)
+- **FoodSearchModal** in Nutrition — referentie: `frontend/src/components/NutritionLog.jsx` → `FoodSearchModal`
+- **AI Quick Log** in Nutrition (`POST /api/nutrition/log-ai`) — al in PWA, nog niet in iOS
+- **Foto upload** in WeightHistory — `expo-image-picker`, comprimeer naar base64 JPEG
+- **Compare screen** in WeightHistory (2 foto's naast elkaar + zoom knoppen)
+- **Whoop sync knop** op Dashboard
+- **HealthKit** integratie — via `react-native-health` (later, optioneel)
 
 #### 🔧 Bekende issues / TODO
-- Testen op echte iPhone nog niet gedaan (werklaptop firewall blokkade) — thuis testen via `npx expo start`
-- Nutrition heeft nog geen + knop om voedsel toe te voegen (alleen via Chat)
+- Testen op echte iPhone: werklaptop firewall blokkeert tunnel. Thuis: `npx expo start` → Expo Go scannen
 - Dashboard heeft nog geen date picker kalender (alleen DateNav pijltjes)
-- WeightHistory foto upload nog niet gebouwd (modal heeft wel datum/gewicht veld)
 
 #### 🏗️ Architectuur verbeteringen (later oppakken)
-- **Workout deduplicatie hoort in de backend**: `/api/workouts` endpoint zou al gededupliceerde workouts moeten teruggeven. Nu zit de logica op 3 plekken: `workout_utils.py` (TDEE), `WorkoutLog.jsx` (PWA), `WorkoutsScreen.tsx` (iOS). Fix: `dedupe_workouts()` aanroepen in `backend/app/routes/workouts.py` vóór de return, dan kunnen alle clients de logica weggooien.
+- **Workout deduplicatie hoort in de backend**: nu op 3 plekken (`workout_utils.py`, `WorkoutLog.jsx`, `WorkoutsScreen.tsx`). Fix: `dedupe_workouts()` in `backend/app/routes/workouts.py` vóór de return.
 
 #### 🔧 Dev setup
 - Werklaptop: `npx expo start` + `w` voor browser preview (geen tunnel mogelijk door firewall)
 - Thuis/privé laptop: `npx expo start` → scan QR in Expo Go app op iPhone
+- Backend URL: `https://danesh-health-backend.agreeableground-243793ea.northeurope.azurecontainerapps.io`
+- Frontend lokaal: `cd frontend && npm run dev` (vereist `frontend/.env.local` met `VITE_API_BASE_URL=<backend-url>`)
 
 ---
 
