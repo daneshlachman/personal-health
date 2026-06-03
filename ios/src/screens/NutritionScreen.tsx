@@ -284,7 +284,7 @@ const msStyles = StyleSheet.create({
   dropdown:    { position: 'absolute', right: 0, top: 28, zIndex: 20, backgroundColor: colors.white, borderRadius: radius.xl, shadowColor: '#000', shadowOffset: {width:0,height:2}, shadowOpacity: 0.12, shadowRadius: 8, elevation: 8, minWidth: 140, paddingVertical: 4 },
   dropItem:    { paddingHorizontal: spacing.lg, paddingVertical: 10 },
   dropTxt:     { fontSize: 14, color: colors.gray[700] },
-  emptyRow:    { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  emptyRow:    { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
   emptyTxt:    { fontSize: 12, color: colors.gray[400] },
   entryRow:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.gray[50] },
   entryDesc:   { fontSize: 14, color: colors.gray[800], marginBottom: 2 },
@@ -294,10 +294,10 @@ const msStyles = StyleSheet.create({
   iconBtn:     { paddingHorizontal: 6, paddingVertical: 4 },
   editIcon:    { fontSize: 16, color: colors.brand[400] },
   deleteIcon:  { fontSize: 20, color: colors.status.red },
-  totalRow:    { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 10, backgroundColor: colors.gray[50], borderTopWidth: 1, borderTopColor: colors.gray[100] },
+  totalRow:    { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 10, backgroundColor: colors.gray[50], borderTopWidth: 1, borderTopColor: colors.gray[100], borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
   totalLabel:  { fontSize: 11, fontWeight: '700', color: colors.gray[700], marginRight: 4 },
   totalKcal:   { fontSize: 11, fontWeight: '700', color: colors.gray[700] },
-  aiBottomBtn: { paddingHorizontal: spacing.lg, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.gray[50] },
+  aiBottomBtn: { paddingHorizontal: spacing.lg, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.gray[50], borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
 });
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
