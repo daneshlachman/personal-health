@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, useWindowDimensions, Modal, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, today } from '../utils/api';
 import { colors, card, spacing, radius } from '../utils/colors';
@@ -16,13 +18,25 @@ const MONTH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov'
 function WeightModal({ onClose, onSaved }: { onClose: () => void; onSaved: (e: any) => void }) {
   const [kg, setKg] = useState('');
   const [dateStr, setDateStr] = useState(today());
+  const [photo, setPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const pickPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0].base64) {
+      setPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
 
   const save = () => {
     const w = parseFloat(kg);
     if (!w) return;
     setSaving(true);
-    api.post('/api/weight', { weight_kg: w, date: dateStr })
+    api.post('/api/weight', { weight_kg: w, date: dateStr, photo_data: photo })
       .then(r => { onSaved(r.data); onClose(); })
       .catch(console.error)
       .finally(() => setSaving(false));
@@ -48,6 +62,18 @@ function WeightModal({ onClose, onSaved }: { onClose: () => void; onSaved: (e: a
               <TextInput value={dateStr} onChangeText={setDateStr} autoComplete="off" style={wmStyles.input} />
             </View>
           </View>
+          {photo ? (
+            <View style={{ position: 'relative' }}>
+              <Image source={{ uri: photo }} style={wmStyles.photoPreview} />
+              <TouchableOpacity onPress={() => setPhoto(null)} style={wmStyles.photoRemove}>
+                <Text style={{ color: colors.gray[600] }}>×</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={pickPhoto} style={wmStyles.photoPicker}>
+              <Text style={wmStyles.photoPickerTxt}>+ Add photo (optional)</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={save} disabled={saving || !kg} style={[wmStyles.btn, (!kg || saving) && { opacity: 0.4 }]}>
             <Text style={wmStyles.btnTxt}>{saving ? 'Saving…' : 'Save'}</Text>
           </TouchableOpacity>
@@ -66,8 +92,12 @@ const wmStyles = StyleSheet.create({
   row:     { flexDirection: 'row', gap: spacing.md },
   lbl:     { fontSize: 11, color: colors.gray[400], marginBottom: 4 },
   input:   { borderWidth: 1, borderColor: colors.gray[200], borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 16, color: colors.gray[900] },
-  btn:     { backgroundColor: colors.brand[500], borderRadius: radius.xl, paddingVertical: 12, alignItems: 'center' },
-  btnTxt:  { color: colors.white, fontWeight: '600', fontSize: 15 },
+  btn:          { backgroundColor: colors.brand[500], borderRadius: radius.xl, paddingVertical: 12, alignItems: 'center' },
+  btnTxt:       { color: colors.white, fontWeight: '600', fontSize: 15 },
+  photoPicker:  { borderWidth: 2, borderStyle: 'dashed', borderColor: colors.gray[200], borderRadius: radius.xl, paddingVertical: 20, alignItems: 'center' },
+  photoPickerTxt: { fontSize: 14, color: colors.gray[400] },
+  photoPreview: { width: '100%', height: 160, borderRadius: radius.xl, resizeMode: 'cover' },
+  photoRemove:  { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center' },
 });
 
 function WhoopSync() {
@@ -153,18 +183,17 @@ export default function DashboardScreen({ navigation }: any) {
           {loading ? <ActivityIndicator color={colors.brand[500]} /> : (
             <>
               <View style={styles.ringsGrid}>
-                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'recovery' })}>
-                  <RingChart value={whoop?.recovery_score ?? null} max={100} color={recoveryColor(whoop?.recovery_score ?? null)} size={80} stroke={8} label="Recovery" unit="%" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'sleep' })}>
-                  <RingChart value={whoop?.sleep_score ?? null} max={100} color={sleepColor(whoop?.sleep_score ?? null)} size={80} stroke={8} label="Sleep" unit="%" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'recovery' })}>
-                  <RingChart value={whoop?.hrv_ms ? Math.round(whoop.hrv_ms) : null} max={120} color={colors.brand[500]} size={80} stroke={8} label="HRV (ms)" unit="ms" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'recovery' })}>
-                  <RingChart value={whoop?.resting_hr ?? null} max={100} color={colors.status.red} size={80} stroke={8} label="Resting HR" unit="bpm" />
-                </TouchableOpacity>
+                {[
+                  { value: whoop?.recovery_score ?? null, max: 100, color: recoveryColor(whoop?.recovery_score ?? null), label: 'Recovery', unit: '%', tab: 'recovery' },
+                  { value: whoop?.sleep_score ?? null,    max: 100, color: sleepColor(whoop?.sleep_score ?? null),        label: 'Sleep',    unit: '%', tab: 'sleep' },
+                  { value: whoop?.hrv_ms ? Math.round(whoop.hrv_ms) : null, max: 120, color: colors.brand[500], label: 'HRV (ms)', unit: 'ms', tab: 'recovery' },
+                  { value: whoop?.resting_hr ?? null,     max: 100, color: colors.status.red, label: 'Resting HR', unit: 'bpm', tab: 'recovery' },
+                ].map(r => (
+                  <TouchableOpacity key={r.label} style={styles.ringCell}
+                    onPress={() => navigation.navigate('WhoopHistory', { initialTab: r.tab })}>
+                    <RingChart value={r.value} max={r.max} color={r.color} size={80} stroke={8} label={r.label} unit={r.unit} />
+                  </TouchableOpacity>
+                ))}
               </View>
               <Text style={styles.tapHint}>Tap a ring for history</Text>
             </>
@@ -210,7 +239,9 @@ export default function DashboardScreen({ navigation }: any) {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setAddingWeight(true); }}
                 style={styles.addWeightBtn}>
-                <Text style={styles.addWeightTxt}>+</Text>
+                <Svg width={12} height={12} viewBox="0 0 12 12">
+                  <Path d="M6 1v10M1 6h10" stroke="white" strokeWidth={2} strokeLinecap="round" />
+                </Svg>
               </TouchableOpacity>
               <Text style={styles.chevron}>›</Text>
             </View>
@@ -256,7 +287,8 @@ const styles = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: colors.bg },
   content:      { padding: spacing.lg, gap: spacing.md },
   ringsCard:    { alignItems: 'center' },
-  ringsGrid:    { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: spacing.lg, width: '100%' },
+  ringsGrid:    { flexDirection: 'row', flexWrap: 'wrap', width: '100%' },
+  ringCell:     { width: '50%', alignItems: 'center', paddingVertical: spacing.md },
   divider:      { height: 1, backgroundColor: colors.gray[100], marginVertical: spacing.sm },
   calRow:       { gap: spacing.xs },
   calHeader:    { flexDirection: 'row', justifyContent: 'space-between' },
@@ -274,8 +306,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: '700', color: colors.gray[400], letterSpacing: 0.5, textTransform: 'uppercase' },
   weightChange: { fontSize: 13, fontWeight: '600' },
   tapHint:      { fontSize: 11, color: colors.gray[400], marginTop: 4 },
-  addWeightBtn: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
-  addWeightTxt: { color: colors.white, fontSize: 16, lineHeight: 20, marginTop: -1 },
+  addWeightBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
   chevron:      { fontSize: 18, color: colors.gray[400] },
   noData:       { color: colors.gray[400], fontSize: 13, textAlign: 'center', paddingVertical: spacing.lg },
 });
