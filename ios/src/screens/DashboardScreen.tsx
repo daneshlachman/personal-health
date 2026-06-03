@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, useWindowDimensions, Modal, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, today } from '../utils/api';
 import { colors, card, spacing, radius } from '../utils/colors';
@@ -12,6 +12,63 @@ type TdeeData  = { burned_now: number; tdee: number; consumed: number; balance: 
 type WeightEntry = { date: string; weight_kg: number };
 
 const MONTH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function WeightModal({ onClose, onSaved }: { onClose: () => void; onSaved: (e: any) => void }) {
+  const [kg, setKg] = useState('');
+  const [dateStr, setDateStr] = useState(today());
+  const [saving, setSaving] = useState(false);
+
+  const save = () => {
+    const w = parseFloat(kg);
+    if (!w) return;
+    setSaving(true);
+    api.post('/api/weight', { weight_kg: w, date: dateStr })
+      .then(r => { onSaved(r.data); onClose(); })
+      .catch(console.error)
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={wmStyles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
+        <View style={wmStyles.sheet}>
+          <View style={wmStyles.header}>
+            <Text style={wmStyles.title}>Add weight</Text>
+            <TouchableOpacity onPress={onClose}><Text style={wmStyles.close}>×</Text></TouchableOpacity>
+          </View>
+          <View style={wmStyles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={wmStyles.lbl}>Weight (kg)</Text>
+              <TextInput autoFocus value={kg} onChangeText={setKg} keyboardType="decimal-pad"
+                autoComplete="off" placeholder="0.0" placeholderTextColor={colors.gray[400]} style={wmStyles.input} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={wmStyles.lbl}>Date</Text>
+              <TextInput value={dateStr} onChangeText={setDateStr} autoComplete="off" style={wmStyles.input} />
+            </View>
+          </View>
+          <TouchableOpacity onPress={save} disabled={saving || !kg} style={[wmStyles.btn, (!kg || saving) && { opacity: 0.4 }]}>
+            <Text style={wmStyles.btnTxt}>{saving ? 'Saving…' : 'Save'}</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const wmStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'flex-end' },
+  sheet:   { backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.xl, paddingBottom: 40, gap: spacing.md },
+  header:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title:   { fontSize: 14, fontWeight: '600', color: colors.gray[700] },
+  close:   { fontSize: 24, color: colors.gray[400] },
+  row:     { flexDirection: 'row', gap: spacing.md },
+  lbl:     { fontSize: 11, color: colors.gray[400], marginBottom: 4 },
+  input:   { borderWidth: 1, borderColor: colors.gray[200], borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 16, color: colors.gray[900] },
+  btn:     { backgroundColor: colors.brand[500], borderRadius: radius.xl, paddingVertical: 12, alignItems: 'center' },
+  btnTxt:  { color: colors.white, fontWeight: '600', fontSize: 15 },
+});
 
 function WhoopSync() {
   const [syncing, setSyncing] = useState(false);
@@ -58,8 +115,9 @@ function sleepColor(s: number | null) {
 }
 
 export default function DashboardScreen({ navigation }: any) {
-  const [date, setDate]     = useState(today());
-  const [whoop, setWhoop]   = useState<WhoopData | null>(null);
+  const [date, setDate]        = useState(today());
+  const [whoop, setWhoop]      = useState<WhoopData | null>(null);
+  const [addingWeight, setAddingWeight] = useState(false);
   const [tdee, setTdee]     = useState<TdeeData | null>(null);
   const [weight, setWeight] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +207,13 @@ export default function DashboardScreen({ navigation }: any) {
                 </Text>
               )}
             </View>
-            <Text style={styles.chevron}>›</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setAddingWeight(true); }}
+                style={styles.addWeightBtn}>
+                <Text style={styles.addWeightTxt}>+</Text>
+              </TouchableOpacity>
+              <Text style={styles.chevron}>›</Text>
+            </View>
           </View>
           {weightData.length > 1 ? (
             <LineChart data={weightData} width={width - 64} height={140} />
@@ -161,6 +225,13 @@ export default function DashboardScreen({ navigation }: any) {
         {/* Whoop sync */}
         <WhoopSync />
       </ScrollView>
+
+      {addingWeight && (
+        <WeightModal
+          onClose={() => setAddingWeight(false)}
+          onSaved={() => { setAddingWeight(false); }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -203,6 +274,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: '700', color: colors.gray[400], letterSpacing: 0.5, textTransform: 'uppercase' },
   weightChange: { fontSize: 13, fontWeight: '600' },
   tapHint:      { fontSize: 11, color: colors.gray[400], marginTop: 4 },
+  addWeightBtn: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
+  addWeightTxt: { color: colors.white, fontSize: 16, lineHeight: 20, marginTop: -1 },
   chevron:      { fontSize: 18, color: colors.gray[400] },
   noData:       { color: colors.gray[400], fontSize: 13, textAlign: 'center', paddingVertical: spacing.lg },
 });

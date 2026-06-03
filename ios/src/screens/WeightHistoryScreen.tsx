@@ -43,6 +43,7 @@ const kpiStyles = StyleSheet.create({
 export default function WeightHistoryScreen({ navigation }: any) {
   const [days, setDays] = useState(7);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [allEntries, setAllEntries] = useState<Entry[]>([]); // voor foto galerij altijd alles
   const [loading, setLoading] = useState(true);
   const [modalEntry, setModalEntry] = useState<Entry | null | undefined>(undefined);
   const [photoEntry, setPhotoEntry] = useState<Entry | null>(null);
@@ -50,9 +51,13 @@ export default function WeightHistoryScreen({ navigation }: any) {
 
   const fetch_ = (d: number) => {
     setLoading(true);
-    api.get(`/api/weight?days=${d}`)
-      .then(r => setEntries(r.data))
-      .catch(() => {})
+    Promise.all([
+      api.get(`/api/weight?days=${d}`),
+      api.get('/api/weight?days=3650'),
+    ]).then(([r, all]) => {
+      setEntries(r.data);
+      setAllEntries(all.data);
+    }).catch(() => {})
       .finally(() => setLoading(false));
   };
 
@@ -84,7 +89,7 @@ export default function WeightHistoryScreen({ navigation }: any) {
   const changeColor = change == null ? undefined : change < 0 ? colors.status.green : change > 0 ? colors.status.red : undefined;
 
   const chartData = sorted.map(e => ({ label: fmtDate(e.date), value: e.weight_kg }));
-  const photos = [...entries].sort((a, b) => b.date.localeCompare(a.date)).filter(e => e.photo_data);
+  const photos = [...allEntries].sort((a, b) => b.date.localeCompare(a.date)).filter(e => e.photo_data);
 
   return (
     <SafeAreaView style={styles.safe}>

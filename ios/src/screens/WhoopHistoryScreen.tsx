@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Rect, Line as SvgLine, Text as SvgText } from 'react-native-svg';
 import { api } from '../utils/api';
 import { colors, card, spacing, radius } from '../utils/colors';
-import LineChart from '../components/LineChart';
+import SimpleBarChart from '../components/SimpleBarChart';
 
 const PERIODS = [{ label: '1W', days: 7 }, { label: '1M', days: 30 }, { label: '3M', days: 90 }];
 
@@ -130,16 +130,16 @@ function RecoveryTab({ data, width }: { data: WhoopEntry[]; width: number }) {
 
       <View style={card}>
         <ChartSection title="Recovery Score" avgLabel={avgR != null ? `avg ${Math.round(avgR)}%` : undefined}>
-          <LineChart data={toChart('recovery_score')} width={width - 64} height={110} color={colors.status.green} avgLine={avgR ?? undefined} />
+          <SimpleBarChart data={toChart('recovery_score')} width={width - 64} height={110} color={colors.status.green} avgLine={avgR ?? undefined} />
         </ChartSection>
         <ChartSection title="HRV" avgLabel={avgH != null ? `avg ${Math.round(avgH)} ms` : undefined}>
-          <LineChart data={toChart('hrv_ms')} width={width - 64} height={110} color={colors.macro.protein} avgLine={avgH ?? undefined} />
+          <SimpleBarChart data={toChart('hrv_ms')} width={width - 64} height={110} color={colors.macro.protein} avgLine={avgH ?? undefined} />
         </ChartSection>
         <ChartSection title="Resting HR" avgLabel={avgRhr != null ? `avg ${Math.round(avgRhr)} bpm` : undefined}>
-          <LineChart data={toChart('resting_hr')} width={width - 64} height={110} color={colors.macro.fat} avgLine={avgRhr ?? undefined} />
+          <SimpleBarChart data={toChart('resting_hr')} width={width - 64} height={110} color={colors.macro.fat} avgLine={avgRhr ?? undefined} />
         </ChartSection>
         <ChartSection title="Respiratory Rate" avgLabel={avgRr != null ? `avg ${avgRr.toFixed(1)} rpm` : undefined}>
-          <LineChart data={toChart('respiratory_rate')} width={width - 64} height={110} color={colors.status.yellow} avgLine={avgRr ?? undefined} />
+          <SimpleBarChart data={toChart('respiratory_rate')} width={width - 64} height={110} color={colors.status.yellow} avgLine={avgRr ?? undefined} />
         </ChartSection>
       </View>
     </View>
@@ -175,13 +175,13 @@ function SleepTab({ data, width }: { data: WhoopEntry[]; width: number }) {
           <SleepBarChart data={data} width={width - 64} />
         </ChartSection>
         <ChartSection title="Consistency" avgLabel={avgCons != null ? `avg ${Math.round(avgCons)}%` : undefined}>
-          <LineChart data={toChart('sleep_consistency_pct')} width={width - 64} height={110} color="#8b5cf6" avgLine={avgCons ?? undefined} />
+          <SimpleBarChart data={toChart('sleep_consistency_pct')} width={width - 64} height={110} color="#8b5cf6" avgLine={avgCons ?? undefined} />
         </ChartSection>
         <ChartSection title="Efficiency" avgLabel={avgEff != null ? `avg ${Math.round(avgEff)}%` : undefined}>
-          <LineChart data={toChart('sleep_efficiency_pct')} width={width - 64} height={110} color="#06b6d4" avgLine={avgEff ?? undefined} />
+          <SimpleBarChart data={toChart('sleep_efficiency_pct')} width={width - 64} height={110} color="#06b6d4" avgLine={avgEff ?? undefined} />
         </ChartSection>
         <ChartSection title="Disturbances">
-          <LineChart data={toChart('sleep_disturbances')} width={width - 64} height={110} color={colors.status.orange} />
+          <SimpleBarChart data={toChart('sleep_disturbances')} width={width - 64} height={110} color={colors.status.orange} />
         </ChartSection>
       </View>
     </View>

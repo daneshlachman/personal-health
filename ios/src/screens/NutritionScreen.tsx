@@ -347,13 +347,7 @@ export default function NutritionScreen() {
 
         {/* Calorie + macro rings */}
         <View style={[card, styles.ringsCard]}>
-          <View style={styles.bigRingRow}>
-            <RingChart value={totalCal} max={GOALS.calories} color={colors.brand[500]} size={120} stroke={10} unit="kcal" />
-            <View>
-              <Text style={styles.bigVal}>{Math.round(totalCal)}</Text>
-              <Text style={styles.bigSub}>of {GOALS.calories} kcal</Text>
-            </View>
-          </View>
+          <RingChart value={totalCal} max={GOALS.calories} color={colors.brand[500]} size={120} stroke={10} unit="kcal" />
           <View style={styles.macroRow}>
             <RingChart value={Math.round(totalP)} max={GOALS.protein_g} color={colors.macro.protein} size={72} stroke={6} label="Protein" unit="g" />
             <RingChart value={Math.round(totalC)} max={GOALS.carbs_g}   color={colors.macro.carbs}   size={72} stroke={6} label="Carbs"   unit="g" />
@@ -385,8 +379,5 @@ const styles = StyleSheet.create({
   safe:       { flex: 1, backgroundColor: colors.bg },
   content:    { padding: spacing.lg, gap: spacing.md },
   ringsCard:  { alignItems: 'center', gap: spacing.lg },
-  bigRingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
-  bigVal:     { fontSize: 36, fontWeight: '700', color: colors.gray[900] },
-  bigSub:     { fontSize: 13, color: colors.gray[400] },
   macroRow:   { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
 });
