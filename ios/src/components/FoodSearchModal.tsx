@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { api } from '../utils/api';
+import { searchCommon } from '../utils/commonFoods';
 import { colors, spacing, radius } from '../utils/colors';
 
 const MEAL_LABELS: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snacks' };
@@ -23,10 +24,17 @@ export default function FoodSearchModal({ meal, date, onClose, onSaved }: Props)
 
   useEffect(() => {
     if (query.length < 2) { setResults([]); return; }
+    // Show local results immediately
+    const local = searchCommon(query);
+    setResults(local);
     const timer = setTimeout(() => {
       setSearching(true);
       api.get(`/api/food/search?q=${encodeURIComponent(query)}`)
-        .then(r => setResults(r.data))
+        .then(r => {
+          const localNames = new Set(local.map(f => f.product_name));
+          const remote = r.data.filter((f: any) => !localNames.has(f.name));
+          setResults([...local, ...remote]);
+        })
         .catch(() => {})
         .finally(() => setSearching(false));
     }, 400);

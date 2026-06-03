@@ -6,7 +6,7 @@ import { api, today } from '../utils/api';
 import { colors, spacing, radius } from '../utils/colors';
 import DateNav from '../components/DateNav';
 
-type Message = { id: string; role: 'user' | 'assistant'; content: string };
+type Message = { id: string; role: 'user' | 'assistant'; content: string; nutritionLogged?: boolean };
 
 function cleanReply(text: string) {
   return text
@@ -43,7 +43,12 @@ export default function ChatScreen() {
     setMessages(prev => [...prev, userMsg]);
     try {
       const r = await api.post('/api/chat', { message: text, date });
-      const assistantMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: r.data.message };
+      const assistantMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: r.data.message,
+        nutritionLogged: r.data.nutrition_logged,
+      };
       setMessages(prev => [...prev, assistantMsg]);
     } catch {
       setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Something went wrong, please try again.' }]);
@@ -67,11 +72,16 @@ export default function ChatScreen() {
             </View>
           )}
           {messages.map(msg => (
-            <View key={msg.id} style={[styles.bubble, msg.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
-              {msg.role === 'user' ? (
-                <Text style={styles.userText}>{msg.content}</Text>
-              ) : (
-                <Markdown style={mdStyles}>{cleanReply(msg.content)}</Markdown>
+            <View key={msg.id} style={styles.msgWrapper}>
+              <View style={[styles.bubble, msg.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
+                {msg.role === 'user' ? (
+                  <Text style={styles.userText}>{msg.content}</Text>
+                ) : (
+                  <Markdown style={mdStyles}>{cleanReply(msg.content)}</Markdown>
+                )}
+              </View>
+              {msg.nutritionLogged && (
+                <Text style={styles.loggedBadge}>✓ Logged in Nutrition</Text>
               )}
             </View>
           ))}
@@ -92,7 +102,8 @@ export default function ChatScreen() {
             multiline
             maxLength={1000}
           />
-          <TouchableOpacity onPress={send} disabled={!input.trim() || sending} style={[styles.sendBtn, (!input.trim() || sending) && styles.sendDisabled]}>
+          <TouchableOpacity onPress={send} disabled={!input.trim() || sending}
+            style={[styles.sendBtn, (!input.trim() || sending) && styles.sendDisabled]}>
             <Text style={styles.sendText}>Send</Text>
           </TouchableOpacity>
         </View>
@@ -109,13 +120,13 @@ const styles = StyleSheet.create({
   emptyState:      { alignItems: 'center', marginTop: 60, gap: spacing.md },
   emptyIcon:       { fontSize: 40 },
   emptyText:       { fontSize: 14, color: colors.gray[400], textAlign: 'center', maxWidth: 260 },
+  msgWrapper:      { gap: 4 },
   bubble:          { maxWidth: '80%', borderRadius: radius.lg, padding: spacing.md },
   userBubble:      { alignSelf: 'flex-end', backgroundColor: colors.brand[500], borderBottomRightRadius: 4 },
   assistantBubble: { alignSelf: 'flex-start', backgroundColor: colors.white, borderBottomLeftRadius: 4,
                      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3, elevation: 1 },
-  bubbleText:      { fontSize: 14, lineHeight: 20 },
-  userText:        { color: colors.white },
-  assistantText:   { color: colors.gray[900] },
+  userText:        { color: colors.white, fontSize: 14, lineHeight: 20 },
+  loggedBadge:     { alignSelf: 'flex-start', fontSize: 11, color: colors.status.green, marginLeft: 4 },
   inputRow:        { flexDirection: 'row', gap: spacing.sm, padding: spacing.lg, paddingTop: spacing.sm,
                      backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.gray[200] },
   input:           { flex: 1, backgroundColor: colors.white, borderRadius: radius.xl, paddingHorizontal: spacing.md,
@@ -125,7 +136,6 @@ const styles = StyleSheet.create({
                      paddingVertical: spacing.sm, justifyContent: 'center' },
   sendDisabled:    { opacity: 0.4 },
   sendText:        { color: colors.white, fontWeight: '600', fontSize: 15 },
-  userText:        { color: colors.white, fontSize: 14, lineHeight: 20 },
 });
 
 const mdStyles: any = {
@@ -138,8 +148,5 @@ const mdStyles: any = {
   table:         { borderWidth: 1, borderColor: colors.gray[200], borderRadius: 8, marginVertical: spacing.xs },
   th:            { backgroundColor: colors.gray[50], padding: spacing.xs, fontWeight: '700', fontSize: 12 },
   td:            { padding: spacing.xs, borderTopWidth: 1, borderTopColor: colors.gray[100], fontSize: 13 },
-  bullet_list:   { marginVertical: 2 },
-  ordered_list:  { marginVertical: 2 },
-  list_item:     { marginVertical: 1 },
   paragraph:     { marginVertical: 2 },
 };

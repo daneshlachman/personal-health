@@ -313,10 +313,15 @@ export default function NutritionScreen() {
 
   useEffect(() => { fetch_(date); }, [date]);
 
+  const [showKcal, setShowKcal] = useState<string | null>(null);
+
   const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0);
   const totalP   = entries.reduce((s, e) => s + (e.protein_g || 0), 0);
   const totalC   = entries.reduce((s, e) => s + (e.carbs_g || 0), 0);
   const totalF   = entries.reduce((s, e) => s + (e.fat_g || 0), 0);
+
+  const macroKcal = (g: number, type: 'p' | 'c' | 'f') =>
+    Math.round(g * (type === 'f' ? 9 : 4));
 
   const handleDelete = (id: string) => {
     Alert.alert('Delete', 'Remove this entry?', [
@@ -343,9 +348,20 @@ export default function NutritionScreen() {
         <View style={[card, styles.ringsCard]}>
           <RingChart value={totalCal} max={GOALS.calories} color={colors.brand[500]} size={120} stroke={10} unit="kcal" />
           <View style={styles.macroRow}>
-            <RingChart value={Math.round(totalP)} max={GOALS.protein_g} color={colors.macro.protein} size={72} stroke={6} label="Protein" unit="g" />
-            <RingChart value={Math.round(totalC)} max={GOALS.carbs_g}   color={colors.macro.carbs}   size={72} stroke={6} label="Carbs"   unit="g" />
-            <RingChart value={Math.round(totalF)} max={GOALS.fat_g}     color={colors.macro.fat}     size={72} stroke={6} label="Fat"     unit="g" />
+            {([
+              { key: 'p', label: 'Protein', val: Math.round(totalP), max: GOALS.protein_g, color: colors.macro.protein, type: 'p' as const },
+              { key: 'c', label: 'Carbs',   val: Math.round(totalC), max: GOALS.carbs_g,   color: colors.macro.carbs,   type: 'c' as const },
+              { key: 'f', label: 'Fat',     val: Math.round(totalF), max: GOALS.fat_g,     color: colors.macro.fat,     type: 'f' as const },
+            ]).map(m => (
+              <TouchableOpacity key={m.key} onPress={() => setShowKcal(prev => prev === m.key ? null : m.key)}>
+                <RingChart
+                  value={showKcal === m.key ? macroKcal(m.val, m.type) : m.val}
+                  max={showKcal === m.key ? macroKcal(m.max, m.type) : m.max}
+                  color={m.color} size={72} stroke={6} label={m.label}
+                  unit={showKcal === m.key ? 'kcal' : 'g'}
+                />
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
