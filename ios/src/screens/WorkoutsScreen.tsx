@@ -52,6 +52,35 @@ function getMonthDays(year: number, month: number) {
   return days;
 }
 
+// ── Route map als SVG ─────────────────────────────────────────────────────────
+function RouteMap({ points, width }: { points: [number, number][]; width: number }) {
+  if (!points || points.length < 2) return null;
+  const H = 180, PAD = 12;
+  const lats = points.map(p => p[0]);
+  const lons = points.map(p => p[1]);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+  const latRange = maxLat - minLat || 1;
+  const lonRange = maxLon - minLon || 1;
+  // Keep aspect ratio
+  const scaleX = (width - PAD * 2) / lonRange;
+  const scaleY = (H - PAD * 2) / latRange;
+  const scale  = Math.min(scaleX, scaleY);
+  const offsetX = (width - lonRange * scale) / 2;
+  const offsetY = (H - latRange * scale) / 2;
+  const px = (lon: number) => offsetX + (lon - minLon) * scale;
+  const py = (lat: number) => offsetY + (maxLat - lat) * scale;
+  const polyline = points.map(p => `${px(p[1])},${py(p[0])}`).join(' ');
+  return (
+    <View style={{ borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.md, backgroundColor: '#e8ecf0' }}>
+      <Svg width={width} height={H}>
+        <Rect x={0} y={0} width={width} height={H} fill="#e8ecf0" />
+        <Polyline points={polyline} fill="none" stroke={colors.status.orange} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    </View>
+  );
+}
+
 function fmt(minutes: number) {
   if (!minutes) return '';
   const h = Math.floor(minutes / 60);
@@ -235,6 +264,7 @@ function HRZones({ raw }: { raw: any }) {
 function GarminStats({ workout }: { workout: Workout }) {
   const rj = workout.raw_json || {};
   const [metrics, setMetrics] = useState<any[]>([]);
+  const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
   const { width } = useWindowDimensions();
   const chartW = width - 80;
 
@@ -252,7 +282,10 @@ function GarminStats({ workout }: { workout: Workout }) {
   useEffect(() => {
     if (!rj.hasPolyline) return;
     api.get(`/api/workouts/${workout.id}/route`)
-      .then(r => setMetrics((r.data.metrics || []).filter((m: any) => m.hr || m.kmh)))
+      .then(r => {
+        setMetrics((r.data.metrics || []).filter((m: any) => m.hr || m.kmh));
+        setRoutePoints(r.data.points || []);
+      })
       .catch(() => {});
   }, [workout.id]);
 
@@ -270,6 +303,9 @@ function GarminStats({ workout }: { workout: Workout }) {
         {rj.maxHR     > 0 && <StatBlock label="Max HR"    value={`${Math.round(rj.maxHR)} bpm`} />}
         {teLabel      && <StatBlock label="Training effect" value={rj.aerobicTrainingEffect?.toFixed(1)} sub={teLabel} />}
       </View>
+
+      {/* Route map */}
+      {routePoints.length > 1 && <RouteMap points={routePoints} width={chartW} />}
 
       {/* Speed chart */}
       {metrics.length > 2 && (
