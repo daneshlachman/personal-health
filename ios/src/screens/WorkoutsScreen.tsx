@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Polyline, Path as SvgPath, Line as SvgLine, Rect, Text as SvgText } from 'react-native-svg';
 import { api } from '../utils/api';
 import { colors, card, spacing, radius } from '../utils/colors';
 
@@ -179,11 +180,150 @@ export default function WorkoutsScreen() {
   );
 }
 
+// ── Mini SVG line chart for speed/HR ─────────────────────────────────────────
+function MetricChart({ data, dataKey, color, width }: { data: any[]; dataKey: string; color: string; width: number }) {
+  const H = 70, PAD = { top: 4, bottom: 4, left: 0, right: 0 };
+  const vals = data.map(d => d[dataKey]).filter(v => v != null && v > 0);
+  if (vals.length < 2) return null;
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  const range = maxV - minV || 1;
+  const W = width;
+  const px = (i: number) => (i / (data.length - 1)) * W;
+  const py = (v: number) => PAD.top + (H - PAD.top - PAD.bottom) * (1 - (v - minV) / range);
+  const points = data
+    .map((d, i) => d[dataKey] > 0 ? `${px(i)},${py(d[dataKey])}` : null)
+    .filter(Boolean).join(' ');
+  return (
+    <Svg width={width} height={H}>
+      <Polyline points={points} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// ── HR Zones ──────────────────────────────────────────────────────────────────
+function HRZones({ raw }: { raw: any }) {
+  const ZONE_COLORS = ['#93c5fd', '#4ade80', '#facc15', '#fb923c', '#ef4444'];
+  const zones = [1,2,3,4,5].map((n, i) => ({
+    label: `Z${n}`, time: raw[`hrTimeInZone_${n}`] || 0, color: ZONE_COLORS[i],
+  })).filter(z => z.time > 0);
+  if (!zones.length) return null;
+  const total = zones.reduce((s, z) => s + z.time, 0);
+  const fmtTime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.round(s % 60);
+    if (h > 0) return `${h}h ${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    return `${m}:${String(sec).padStart(2,'0')}`;
+  };
+  return (
+    <View style={gStyles.section}>
+      <Text style={gStyles.sectionLabel}>HR ZONES</Text>
+      {zones.map(z => (
+        <View key={z.label} style={gStyles.zoneRow}>
+          <Text style={gStyles.zoneLabel}>{z.label}</Text>
+          <View style={gStyles.zoneBarBg}>
+            <View style={[gStyles.zoneBarFill, { width: `${(z.time/total)*100}%` as any, backgroundColor: z.color }]} />
+          </View>
+          <Text style={gStyles.zoneTime}>{fmtTime(z.time)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── Garmin Stats ──────────────────────────────────────────────────────────────
+function GarminStats({ workout }: { workout: Workout }) {
+  const rj = workout.raw_json || {};
+  const [metrics, setMetrics] = useState<any[]>([]);
+  const { width } = useWindowDimensions();
+  const chartW = width - 80;
+
+  const typeKey = (rj.activityType?.typeKey || '').toLowerCase();
+  const title   = (rj.activityName || '').toLowerCase();
+  const isRun   = typeKey.includes('run') || title.includes('run') || title.includes('hardloop');
+  const km      = rj.distance ? (rj.distance / 1000).toFixed(2) : null;
+  const avgKmh  = rj.averageSpeed ? (rj.averageSpeed * 3.6).toFixed(1) : null;
+  const maxKmh  = rj.maxSpeed ? (rj.maxSpeed * 3.6).toFixed(1) : null;
+  const pace    = rj.averageSpeed > 0
+    ? (() => { const s = 1000 / rj.averageSpeed; return `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,'0')}`; })()
+    : null;
+  const teLabel = rj.trainingEffectLabel?.toLowerCase().replace(/_/g, ' ');
+
+  useEffect(() => {
+    if (!rj.hasPolyline) return;
+    api.get(`/api/workouts/${workout.id}/route`)
+      .then(r => setMetrics((r.data.metrics || []).filter((m: any) => m.hr || m.kmh)))
+      .catch(() => {});
+  }, [workout.id]);
+
+  return (
+    <View style={gStyles.container}>
+      {/* Stats grid */}
+      <View style={gStyles.grid}>
+        {km           && <StatBlock label="Distance"     value={`${km} km`} />}
+        {isRun && pace && <StatBlock label="Pace"        value={pace} sub="min/km" />}
+        {avgKmh       && <StatBlock label="Avg speed"    value={`${avgKmh} km/h`} />}
+        {!isRun && maxKmh && <StatBlock label="Max speed" value={`${maxKmh} km/h`} />}
+        {rj.elevationGain > 0 && <StatBlock label="Elevation" value={`+${Math.round(rj.elevationGain)} m`} />}
+        {rj.calories  > 0 && <StatBlock label="Calories"  value={`${Math.round(rj.calories)} kcal`} />}
+        {rj.averageHR > 0 && <StatBlock label="Avg HR"    value={`${Math.round(rj.averageHR)} bpm`} />}
+        {rj.maxHR     > 0 && <StatBlock label="Max HR"    value={`${Math.round(rj.maxHR)} bpm`} />}
+        {teLabel      && <StatBlock label="Training effect" value={rj.aerobicTrainingEffect?.toFixed(1)} sub={teLabel} />}
+      </View>
+
+      {/* Speed chart */}
+      {metrics.length > 2 && (
+        <View style={gStyles.section}>
+          <Text style={gStyles.sectionLabel}>{isRun ? 'PACE (min/km)' : 'SPEED (km/h)'}</Text>
+          <MetricChart data={metrics} dataKey="kmh" color={colors.status.orange} width={chartW} />
+        </View>
+      )}
+
+      {/* HR chart */}
+      {metrics.some(m => m.hr) && (
+        <View style={gStyles.section}>
+          <Text style={gStyles.sectionLabel}>HEART RATE (bpm)</Text>
+          <MetricChart data={metrics} dataKey="hr" color={colors.status.red} width={chartW} />
+        </View>
+      )}
+
+      <HRZones raw={rj} />
+    </View>
+  );
+}
+
+function StatBlock({ label, value, sub }: { label: string; value: any; sub?: string }) {
+  if (!value) return null;
+  return (
+    <View style={gStyles.statBlock}>
+      <Text style={gStyles.statVal}>{value}</Text>
+      {sub && <Text style={gStyles.statSub}>{sub}</Text>}
+      <Text style={gStyles.statLbl}>{label}</Text>
+    </View>
+  );
+}
+
+const gStyles = StyleSheet.create({
+  container:    { paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.gray[100] },
+  grid:         { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, paddingBottom: spacing.md },
+  statBlock:    { width: '28%' },
+  statVal:      { fontSize: 15, fontWeight: '700', color: colors.gray[900] },
+  statSub:      { fontSize: 9, color: colors.gray[400] },
+  statLbl:      { fontSize: 9, color: colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
+  section:      { marginBottom: spacing.md },
+  sectionLabel: { fontSize: 9, color: colors.gray[400], textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  zoneRow:      { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 4 },
+  zoneLabel:    { fontSize: 10, fontWeight: '500', color: colors.gray[500], width: 18 },
+  zoneBarBg:    { flex: 1, height: 6, backgroundColor: colors.gray[100], borderRadius: radius.full, overflow: 'hidden' },
+  zoneBarFill:  { height: '100%', borderRadius: radius.full },
+  zoneTime:     { fontSize: 10, color: colors.gray[500], width: 50, textAlign: 'right' },
+});
+
+// ── Workout Card ──────────────────────────────────────────────────────────────
 function WorkoutCard({ workout: w }: { workout: Workout }) {
-  const [expanded, setExpanded] = useState(true);
   const rj = w.raw_json || {};
   const isGarmin = w.source === 'garmin';
-  const isHevy = w.source === 'hevy';
+  const isHevy   = w.source === 'hevy';
 
   return (
     <View style={card}>
@@ -200,7 +340,7 @@ function WorkoutCard({ workout: w }: { workout: Workout }) {
         </View>
       </View>
 
-      {expanded && isHevy && w.exercises && (
+      {isHevy && w.exercises && (
         <View style={styles.exercises}>
           {w.exercises.map((ex, i) => (
             <View key={i} style={styles.exercise}>
@@ -217,30 +357,13 @@ function WorkoutCard({ workout: w }: { workout: Workout }) {
         </View>
       )}
 
-      {expanded && isGarmin && (
-        <View style={styles.garminStats}>
-          {rj.distance    && <StatRow label="Distance"   value={`${(rj.distance / 1000).toFixed(2)} km`} />}
-          {rj.averageHR   && <StatRow label="Avg HR"     value={`${rj.averageHR} bpm`} />}
-          {rj.maxHR       && <StatRow label="Max HR"     value={`${rj.maxHR} bpm`} />}
-          {rj.calories    && <StatRow label="Calories"   value={`${rj.calories} kcal`} />}
-          {rj.elevationGain && <StatRow label="Elevation" value={`+${Math.round(rj.elevationGain)} m`} />}
-        </View>
-      )}
+      {isGarmin && <GarminStats workout={w} />}
     </View>
   );
 }
 
 function Tag({ text }: { text: string }) {
   return <View style={styles.tag}><Text style={styles.tagText}>{text}</Text></View>;
-}
-
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.statRow}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -278,8 +401,4 @@ const styles = StyleSheet.create({
   exTitle:       { fontSize: 13, fontWeight: '600', color: colors.gray[800] },
   sets:          { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   set:           { fontSize: 12, color: colors.gray[500], backgroundColor: colors.gray[50], paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm },
-  garminStats:   { marginTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.gray[100], paddingTop: spacing.md, gap: spacing.xs },
-  statRow:       { flexDirection: 'row', justifyContent: 'space-between' },
-  statLabel:     { fontSize: 13, color: colors.gray[400] },
-  statValue:     { fontSize: 13, fontWeight: '600', color: colors.gray[900] },
 });
