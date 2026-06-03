@@ -361,7 +361,7 @@ function StatBlock({ label, value, sub }: { label: string; value: any; sub?: str
 }
 
 const gStyles = StyleSheet.create({
-  container:    { paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.gray[100] },
+  container:    { paddingTop: spacing.md },
   grid:         { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, paddingBottom: spacing.md },
   statBlock:    { width: '28%' },
   statVal:      { fontSize: 15, fontWeight: '700', color: colors.gray[900] },
