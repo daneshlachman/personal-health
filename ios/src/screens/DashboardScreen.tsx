@@ -250,7 +250,6 @@ export default function DashboardScreen({ navigation }: any) {
                   <Path d="M6 1v10M1 6h10" stroke="white" strokeWidth={2} strokeLinecap="round" />
                 </Svg>
               </TouchableOpacity>
-              <Text style={styles.chevron}>›</Text>
             </View>
           </View>
           {weightData.length > 1 ? (
@@ -278,7 +277,6 @@ function CalorieRow({ label, value, goal, barColor }: { label: string; value: nu
     <View style={styles.calRow}>
       <View style={styles.calHeader}>
         <Text style={styles.metaLabel}>{label}</Text>
-        <Text style={styles.metaLabel}>est. {goal.toLocaleString()} kcal</Text>
       </View>
       <Text style={styles.calValue}>{value.toLocaleString()} <Text style={styles.calUnit}>kcal</Text></Text>
       <View style={styles.progressBg}>
