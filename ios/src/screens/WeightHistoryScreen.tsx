@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../utils/api';
+import PlusButton from '../components/PlusButton';
 import { colors, card, spacing, radius } from '../utils/colors';
 import LineChart from '../components/LineChart';
 
@@ -161,9 +162,7 @@ export default function WeightHistoryScreen({ navigation }: any) {
         <View style={card}>
           <View style={styles.entriesHeader}>
             <Text style={styles.sectionTitle}>ENTRIES</Text>
-            <TouchableOpacity onPress={() => setModalEntry(null)} style={styles.addBtn}>
-              <Text style={styles.addBtnText}>+</Text>
-            </TouchableOpacity>
+            <PlusButton onPress={() => setModalEntry(null)} size={28} />
           </View>
           {[...entries].sort((a, b) => b.date.localeCompare(a.date)).map(e => (
             <View key={e.id} style={styles.entryRow}>
@@ -296,8 +295,6 @@ const styles = StyleSheet.create({
   photoKg:           { color: colors.white, fontSize: 11, fontWeight: '700' },
   photoDate:         { color: 'rgba(255,255,255,0.7)', fontSize: 9 },
   entriesHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  addBtn:            { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
-  addBtnText:        { color: colors.white, fontSize: 20, lineHeight: 24 },
   entryRow:          { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.gray[100] },
   entryThumb:        { width: 44, height: 44, borderRadius: radius.md },
   entryIcon:         { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center' },

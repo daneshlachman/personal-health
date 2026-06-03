@@ -23,6 +23,17 @@
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4c34a333-7efc-497f-abcb-e31ea3b30641"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/4c34a333-7efc-497f-abcb-e31ea3b30641"
+    }
   }
 }

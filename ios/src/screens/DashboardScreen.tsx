@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, useWindowDimensions, Modal, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Path } from 'react-native-svg';
+import PlusButton from '../components/PlusButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, today } from '../utils/api';
 import { colors, card, spacing, radius } from '../utils/colors';
@@ -253,12 +254,7 @@ export default function DashboardScreen({ navigation }: any) {
               )}
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setAddingWeight(true); }}
-                style={styles.addWeightBtn}>
-                <Svg width={12} height={12} viewBox="0 0 12 12">
-                  <Path d="M6 1v10M1 6h10" stroke="white" strokeWidth={2} strokeLinecap="round" />
-                </Svg>
-              </TouchableOpacity>
+              <PlusButton onPress={() => setAddingWeight(true)} size={26} />
             </View>
           </View>
           {weightData.length > 1 ? (
@@ -320,7 +316,6 @@ const styles = StyleSheet.create({
   tapHint:      { fontSize: 11, color: colors.gray[400], marginTop: 4 },
   topBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 0, marginBottom: spacing.sm },
   gearBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center' },
-  addWeightBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
   chevron:      { fontSize: 18, color: colors.gray[400] },
   noData:       { color: colors.gray[400], fontSize: 13, textAlign: 'center', paddingVertical: spacing.lg },
 });

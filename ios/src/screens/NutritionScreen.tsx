@@ -9,6 +9,7 @@ import { colors, card, spacing, radius } from '../utils/colors';
 import RingChart from '../components/RingChart';
 import DateNav from '../components/DateNav';
 import FoodSearchModal from '../components/FoodSearchModal';
+import PlusButton from '../components/PlusButton';
 
 const GOALS = { calories: 2400, protein_g: 180, carbs_g: 240, fat_g: 80 };
 const MEALS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -208,11 +209,7 @@ function MealSection({ meal, entries, onDelete, onAdd, onQuickLog, onEdit }: {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           {entries.length > 0 && <Text style={msStyles.kcalMeta}>{Math.round(total.cal)} kcal</Text>}
           <View style={{ position: 'relative' }}>
-            <TouchableOpacity onPress={() => setMenuOpen(o => !o)} style={msStyles.addBtn}>
-              <View style={msStyles.plusCircle}>
-                <Text style={msStyles.plusTxt}>+</Text>
-              </View>
-            </TouchableOpacity>
+            <PlusButton onPress={() => setMenuOpen(o => !o)} size={26} />
             {menuOpen && (
               <View style={msStyles.dropdown}>
                 <TouchableOpacity onPress={() => { setMenuOpen(false); onQuickLog(); }} style={msStyles.dropItem}>
@@ -278,9 +275,6 @@ const msStyles = StyleSheet.create({
   header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: 10, backgroundColor: colors.gray[50], borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
   mealTitle:   { fontSize: 11, fontWeight: '700', color: colors.gray[600], letterSpacing: 0.8 },
   kcalMeta:    { fontSize: 11, color: colors.gray[400] },
-  addBtn:      { },
-  plusCircle:  { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
-  plusTxt:     { color: colors.white, fontSize: 18, lineHeight: 22, marginTop: -1 },
   dropdown:    { position: 'absolute', right: 0, top: 28, zIndex: 20, backgroundColor: colors.white, borderRadius: radius.xl, shadowColor: '#000', shadowOffset: {width:0,height:2}, shadowOpacity: 0.12, shadowRadius: 8, elevation: 8, minWidth: 140, paddingVertical: 4 },
   dropItem:    { paddingHorizontal: spacing.lg, paddingVertical: 10 },
   dropTxt:     { fontSize: 14, color: colors.gray[700] },
