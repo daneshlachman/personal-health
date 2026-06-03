@@ -180,13 +180,13 @@ export default function WorkoutsScreen() {
 }
 
 function WorkoutCard({ workout: w }: { workout: Workout }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const rj = w.raw_json || {};
   const isGarmin = w.source === 'garmin';
   const isHevy = w.source === 'hevy';
 
   return (
-    <TouchableOpacity style={card} onPress={() => setExpanded(e => !e)} activeOpacity={0.8}>
+    <View style={card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardEmoji}>{workoutEmoji(w)}</Text>
         <View style={styles.cardMeta}>
@@ -198,7 +198,6 @@ function WorkoutCard({ workout: w }: { workout: Workout }) {
             {isGarmin && rj.averageHR && <Tag text={`${rj.averageHR} bpm avg`} />}
           </View>
         </View>
-        <Text style={styles.chevron}>{expanded ? '▲' : '▼'}</Text>
       </View>
 
       {expanded && isHevy && w.exercises && (
@@ -227,7 +226,7 @@ function WorkoutCard({ workout: w }: { workout: Workout }) {
           {rj.elevationGain && <StatRow label="Elevation" value={`+${Math.round(rj.elevationGain)} m`} />}
         </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
