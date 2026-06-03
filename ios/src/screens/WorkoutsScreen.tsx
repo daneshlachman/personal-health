@@ -55,26 +55,24 @@ function getMonthDays(year: number, month: number) {
 // ── Route map als SVG ─────────────────────────────────────────────────────────
 function RouteMap({ points, width }: { points: [number, number][]; width: number }) {
   if (!points || points.length < 2) return null;
-  const H = 180, PAD = 12;
+  const PAD = 16;
   const lats = points.map(p => p[0]);
   const lons = points.map(p => p[1]);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLon = Math.min(...lons), maxLon = Math.max(...lons);
-  const latRange = maxLat - minLat || 1;
-  const lonRange = maxLon - minLon || 1;
-  // Keep aspect ratio
-  const scaleX = (width - PAD * 2) / lonRange;
-  const scaleY = (H - PAD * 2) / latRange;
-  const scale  = Math.min(scaleX, scaleY);
-  const offsetX = (width - lonRange * scale) / 2;
-  const offsetY = (H - latRange * scale) / 2;
-  const px = (lon: number) => offsetX + (lon - minLon) * scale;
-  const py = (lat: number) => offsetY + (maxLat - lat) * scale;
+  const latRange = maxLat - minLat || 0.001;
+  const lonRange = maxLon - minLon || 0.001;
+  // Fill the box — stretch to fit, keep it readable
+  const W = width - PAD * 2;
+  const H_content = 140;
+  const px = (lon: number) => PAD + ((lon - minLon) / lonRange) * W;
+  const py = (lat: number) => PAD + ((maxLat - lat) / latRange) * H_content;
+  const H = H_content + PAD * 2;
   const polyline = points.map(p => `${px(p[1])},${py(p[0])}`).join(' ');
   return (
-    <View style={{ borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.md, backgroundColor: '#e8ecf0' }}>
+    <View style={{ borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.md, backgroundColor: '#dde3ea' }}>
       <Svg width={width} height={H}>
-        <Rect x={0} y={0} width={width} height={H} fill="#e8ecf0" />
+        <Rect x={0} y={0} width={width} height={H} fill="#dde3ea" />
         <Polyline points={polyline} fill="none" stroke={colors.status.orange} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
     </View>
@@ -301,7 +299,6 @@ function GarminStats({ workout }: { workout: Workout }) {
         {rj.calories  > 0 && <StatBlock label="Calories"  value={`${Math.round(rj.calories)} kcal`} />}
         {rj.averageHR > 0 && <StatBlock label="Avg HR"    value={`${Math.round(rj.averageHR)} bpm`} />}
         {rj.maxHR     > 0 && <StatBlock label="Max HR"    value={`${Math.round(rj.maxHR)} bpm`} />}
-        {teLabel      && <StatBlock label="Training effect" value={rj.aerobicTrainingEffect?.toFixed(1)} sub={teLabel} />}
       </View>
 
       {/* Route map */}
@@ -424,11 +421,11 @@ const styles = StyleSheet.create({
   selectedLabel: { textAlign: 'center', fontSize: 13, color: colors.gray[400], marginTop: spacing.sm },
   emptyCard:     { alignItems: 'center', paddingVertical: spacing.xl },
   emptyText:     { color: colors.gray[400], fontSize: 14 },
-  cardHeader:    { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  cardHeader:    { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   cardEmoji:     { fontSize: 28 },
   cardMeta:      { flex: 1 },
   cardTitle:     { fontSize: 15, fontWeight: '600', color: colors.gray[900], marginBottom: 4 },
-  cardTags:      { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  cardTags:      { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: 4 },
   tag:           { backgroundColor: colors.gray[100], borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   tagText:       { fontSize: 11, color: colors.gray[600], fontWeight: '500' },
   chevron:       { fontSize: 12, color: colors.gray[400] },
