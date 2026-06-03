@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: '700', color: colors.gray[400], letterSpacing: 0.5, textTransform: 'uppercase' },
   weightChange: { fontSize: 13, fontWeight: '600' },
   tapHint:      { fontSize: 11, color: colors.gray[400], marginTop: 4 },
-  topBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 0 },
+  topBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 0, marginBottom: spacing.sm },
   gearBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center' },
   addWeightBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
   chevron:      { fontSize: 18, color: colors.gray[400] },
