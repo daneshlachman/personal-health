@@ -13,6 +13,41 @@ type WeightEntry = { date: string; weight_kg: number };
 
 const MONTH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+function WhoopSync() {
+  const [syncing, setSyncing] = useState(false);
+  const [connected, setConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    api.get('/api/whoop/status').then(r => setConnected(r.data.connected)).catch(() => {});
+  }, []);
+
+  const sync = () => {
+    setSyncing(true);
+    api.post('/api/sync/whoop').finally(() => setSyncing(false));
+  };
+
+  if (connected === null) return null;
+  return (
+    <View style={syncStyles.row}>
+      {connected ? (
+        <TouchableOpacity onPress={sync} disabled={syncing} style={syncStyles.btn}>
+          <Text style={syncStyles.btnTxt}>{syncing ? 'Syncing…' : 'Sync Whoop'}</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity onPress={() => api.get('/api/whoop/authorize')} style={[syncStyles.btn, { backgroundColor: colors.gray[100] }]}>
+          <Text style={[syncStyles.btnTxt, { color: colors.gray[600] }]}>Connect Whoop</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const syncStyles = StyleSheet.create({
+  row: { flexDirection: 'row', justifyContent: 'center', paddingBottom: spacing.sm },
+  btn: { borderWidth: 1, borderColor: colors.brand[500], borderRadius: radius.lg, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
+  btnTxt: { color: colors.brand[500], fontWeight: '600', fontSize: 14 },
+});
+
 function recoveryColor(s: number | null) {
   if (s == null) return colors.gray[400];
   return s >= 67 ? colors.status.green : s >= 34 ? colors.status.yellow : colors.status.red;
@@ -55,15 +90,26 @@ export default function DashboardScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles.content}>
         <DateNav date={date} onChange={setDate} />
 
-        {/* Whoop rings */}
+        {/* Whoop rings — tappable to WhoopHistory */}
         <View style={[card, styles.ringsCard]}>
           {loading ? <ActivityIndicator color={colors.brand[500]} /> : (
-            <View style={styles.ringsGrid}>
-              <RingChart value={whoop?.recovery_score ?? null} max={100} color={recoveryColor(whoop?.recovery_score ?? null)} size={80} stroke={8} label="Recovery" unit="%" />
-              <RingChart value={whoop?.sleep_score ?? null}    max={100} color={sleepColor(whoop?.sleep_score ?? null)}        size={80} stroke={8} label="Sleep"    unit="%" />
-              <RingChart value={whoop?.hrv_ms ? Math.round(whoop.hrv_ms) : null} max={120} color={colors.brand[500]}          size={80} stroke={8} label="HRV (ms)" unit="ms" />
-              <RingChart value={whoop?.resting_hr ?? null}     max={100} color={colors.status.red}                            size={80} stroke={8} label="Resting HR" unit="bpm" />
-            </View>
+            <>
+              <View style={styles.ringsGrid}>
+                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'recovery' })}>
+                  <RingChart value={whoop?.recovery_score ?? null} max={100} color={recoveryColor(whoop?.recovery_score ?? null)} size={80} stroke={8} label="Recovery" unit="%" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'sleep' })}>
+                  <RingChart value={whoop?.sleep_score ?? null} max={100} color={sleepColor(whoop?.sleep_score ?? null)} size={80} stroke={8} label="Sleep" unit="%" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'recovery' })}>
+                  <RingChart value={whoop?.hrv_ms ? Math.round(whoop.hrv_ms) : null} max={120} color={colors.brand[500]} size={80} stroke={8} label="HRV (ms)" unit="ms" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate('WhoopHistory', { initialTab: 'recovery' })}>
+                  <RingChart value={whoop?.resting_hr ?? null} max={100} color={colors.status.red} size={80} stroke={8} label="Resting HR" unit="bpm" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.tapHint}>Tap a ring for history</Text>
+            </>
           )}
         </View>
 
@@ -111,6 +157,9 @@ export default function DashboardScreen({ navigation }: any) {
             <Text style={styles.noData}>No weight data this week</Text>
           )}
         </TouchableOpacity>
+
+        {/* Whoop sync */}
+        <WhoopSync />
       </ScrollView>
     </SafeAreaView>
   );
@@ -153,6 +202,7 @@ const styles = StyleSheet.create({
   weightHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   sectionTitle: { fontSize: 11, fontWeight: '700', color: colors.gray[400], letterSpacing: 0.5, textTransform: 'uppercase' },
   weightChange: { fontSize: 13, fontWeight: '600' },
+  tapHint:      { fontSize: 11, color: colors.gray[400], marginTop: 4 },
   chevron:      { fontSize: 18, color: colors.gray[400] },
   noData:       { color: colors.gray[400], fontSize: 13, textAlign: 'center', paddingVertical: spacing.lg },
 });
