@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Polyline, Path as SvgPath, Line as SvgLine, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Polyline, Rect } from 'react-native-svg';
+import { WebView } from 'react-native-webview';
 import { api } from '../utils/api';
 import { colors, card, spacing, radius } from '../utils/colors';
 
@@ -55,19 +56,40 @@ function getMonthDays(year: number, month: number) {
 // ── Route map als SVG ─────────────────────────────────────────────────────────
 function RouteMap({ points, width }: { points: [number, number][]; width: number }) {
   if (!points || points.length < 2) return null;
-  const PAD = 16;
-  const lats = points.map(p => p[0]);
-  const lons = points.map(p => p[1]);
+  const H = 180;
+
+  // On native: use Leaflet in WebView
+  if (Platform.OS !== 'web') {
+    const coords = JSON.stringify(points);
+    const html = `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>body,html,#map{margin:0;padding:0;width:100%;height:100%}</style>
+</head><body>
+<div id="map"></div>
+<script>
+var pts = ${coords};
+var map = L.map('map',{zoomControl:false,attributionControl:false});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+var poly = L.polyline(pts,{color:'#f97316',weight:3}).addTo(map);
+map.fitBounds(poly.getBounds(),{padding:[10,10]});
+</script></body></html>`;
+    return (
+      <View style={{ height: H, borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.md }}>
+        <WebView source={{ html }} style={{ flex: 1 }} scrollEnabled={false} />
+      </View>
+    );
+  }
+
+  // Web fallback: SVG polyline
+  const PAD = 16, W = width - PAD * 2, Hc = H - PAD * 2;
+  const lats = points.map(p => p[0]), lons = points.map(p => p[1]);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLon = Math.min(...lons), maxLon = Math.max(...lons);
-  const latRange = maxLat - minLat || 0.001;
-  const lonRange = maxLon - minLon || 0.001;
-  // Fill the box — stretch to fit, keep it readable
-  const W = width - PAD * 2;
-  const H_content = 140;
-  const px = (lon: number) => PAD + ((lon - minLon) / lonRange) * W;
-  const py = (lat: number) => PAD + ((maxLat - lat) / latRange) * H_content;
-  const H = H_content + PAD * 2;
+  const lr = maxLat - minLat || 0.001, lonr = maxLon - minLon || 0.001;
+  const px = (lon: number) => PAD + ((lon - minLon) / lonr) * W;
+  const py = (lat: number) => PAD + ((maxLat - lat) / lr) * Hc;
   const polyline = points.map(p => `${px(p[1])},${py(p[0])}`).join(' ');
   return (
     <View style={{ borderRadius: radius.lg, overflow: 'hidden', marginBottom: spacing.md, backgroundColor: '#dde3ea' }}>
@@ -295,7 +317,6 @@ function GarminStats({ workout }: { workout: Workout }) {
         {isRun && pace && <StatBlock label="Pace"        value={pace} sub="min/km" />}
         {avgKmh       && <StatBlock label="Avg speed"    value={`${avgKmh} km/h`} />}
         {!isRun && maxKmh && <StatBlock label="Max speed" value={`${maxKmh} km/h`} />}
-        {rj.elevationGain > 0 && <StatBlock label="Elevation" value={`+${Math.round(rj.elevationGain)} m`} />}
         {rj.calories  > 0 && <StatBlock label="Calories"  value={`${Math.round(rj.calories)} kcal`} />}
         {rj.averageHR > 0 && <StatBlock label="Avg HR"    value={`${Math.round(rj.averageHR)} bpm`} />}
         {rj.maxHR     > 0 && <StatBlock label="Max HR"    value={`${Math.round(rj.maxHR)} bpm`} />}
