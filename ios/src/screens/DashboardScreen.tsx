@@ -143,6 +143,14 @@ function sleepColor(s: number | null) {
   if (s == null) return colors.gray[400];
   return s >= 85 ? colors.status.green : s >= 70 ? colors.brand[500] : colors.status.red;
 }
+function hrvColor(hrv: number | null) {
+  if (hrv == null) return colors.gray[400];
+  return hrv >= 60 ? colors.status.green : hrv >= 40 ? colors.gray[400] : colors.status.red;
+}
+function rhrColor(rhr: number | null) {
+  if (rhr == null) return colors.gray[400];
+  return rhr < 60 ? colors.status.green : rhr <= 65 ? colors.gray[400] : colors.status.red;
+}
 
 export default function DashboardScreen({ navigation }: any) {
   const [date, setDate]        = useState(today());
@@ -177,6 +185,7 @@ export default function DashboardScreen({ navigation }: any) {
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.topBar}>
+          <View style={{ width: 36 }} />
           <DateNav date={date} onChange={setDate} />
           <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.gearBtn}>
             <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -194,8 +203,8 @@ export default function DashboardScreen({ navigation }: any) {
                 {[
                   { value: whoop?.recovery_score ?? null, max: 100, color: recoveryColor(whoop?.recovery_score ?? null), label: 'Recovery', unit: '%', tab: 'recovery' },
                   { value: whoop?.sleep_score ?? null,    max: 100, color: sleepColor(whoop?.sleep_score ?? null),        label: 'Sleep',    unit: '%', tab: 'sleep' },
-                  { value: whoop?.hrv_ms ? Math.round(whoop.hrv_ms) : null, max: 120, color: colors.brand[500], label: 'HRV (ms)', unit: 'ms', tab: 'recovery' },
-                  { value: whoop?.resting_hr ?? null,     max: 100, color: colors.status.red, label: 'Resting HR', unit: 'bpm', tab: 'recovery' },
+                  { value: whoop?.hrv_ms ? Math.round(whoop.hrv_ms) : null, max: 120, color: hrvColor(whoop?.hrv_ms ?? null), label: 'HRV (ms)', unit: 'ms', tab: 'recovery' },
+                  { value: whoop?.resting_hr ?? null, max: 100, color: rhrColor(whoop?.resting_hr ?? null), label: 'Resting HR', unit: 'bpm', tab: 'recovery' },
                 ].map(r => (
                   <TouchableOpacity key={r.label} style={styles.ringCell}
                     onPress={() => navigation.navigate('WhoopHistory', { initialTab: r.tab })}>
@@ -309,7 +318,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: '700', color: colors.gray[400], letterSpacing: 0.5, textTransform: 'uppercase' },
   weightChange: { fontSize: 13, fontWeight: '600' },
   tapHint:      { fontSize: 11, color: colors.gray[400], marginTop: 4 },
-  topBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 0 },
   gearBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.gray[100], alignItems: 'center', justifyContent: 'center' },
   addWeightBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand[500], alignItems: 'center', justifyContent: 'center' },
   chevron:      { fontSize: 18, color: colors.gray[400] },
