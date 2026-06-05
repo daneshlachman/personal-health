@@ -131,7 +131,7 @@ def build_context(user_id: str, user_message: str = "", target_date: date = None
     tdee_str = calculate_tdee(user_id, today)
     tdee_line = f"Estimated TDEE today: {tdee_str}"
 
-    context = f"""Today: {today}
+    context = f"""Today: {today} ({today.strftime("%A")})
 Latest weight: {weight_str}
 Today's Whoop: {whoop_str}
 Today's nutrition so far: {nutrition_str}
@@ -148,7 +148,8 @@ Today's nutrition so far: {nutrition_str}
                 p    = round(sum(n.protein_g or 0 for n in logs))
                 c    = round(sum(n.carbs_g or 0 for n in logs))
                 f    = round(sum(n.fat_g or 0 for n in logs))
-                nutrition_history_lines.append(f"{d}: {kcal} kcal | P {p}g C {c}g F {f}g")
+                day_name = d.strftime("%A")
+                nutrition_history_lines.append(f"{d} ({day_name}): {kcal} kcal | P {p}g C {c}g F {f}g")
         if nutrition_history_lines:
             context += "\nNutrition last 7 days:\n" + "\n".join(nutrition_history_lines)
 
