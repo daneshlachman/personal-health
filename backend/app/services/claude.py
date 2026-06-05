@@ -93,16 +93,25 @@ def build_context(user_id: str, user_message: str = "", target_date: date = None
     )
     weight_str = f"{latest_weight.weight_kg}kg ({latest_weight.date})" if latest_weight else "No data"
 
-    # Weight trend — only when asking about workouts/trends
+    # Weight trend — 30 dagen bij rich context, anders alleen laatste waarde
     if rich:
-        week_ago = today - timedelta(days=7)
+        month_ago = today - timedelta(days=30)
         weights = (
             WeightLog.query
-            .filter(WeightLog.user_id == user_id, WeightLog.date >= week_ago)
+            .filter(WeightLog.user_id == user_id, WeightLog.date >= month_ago)
             .order_by(WeightLog.date)
             .all()
         )
-        weight_str = " → ".join(f"{w.weight_kg}kg" for w in weights) if weights else weight_str
+        if weights:
+            first_w = weights[0].weight_kg
+            last_w = weights[-1].weight_kg
+            change = round(last_w - first_w, 1)
+            trend = f"+{change}kg" if change > 0 else f"{change}kg"
+            weight_str = (
+                f"{last_w}kg (30d trend: {trend}, "
+                f"min {min(w.weight_kg for w in weights)}kg, "
+                f"max {max(w.weight_kg for w in weights)}kg)"
+            )
 
     # Today's Whoop data (always, it's small)
     whoop = WhoopData.query.filter_by(user_id=user_id, date=today).first()
@@ -112,6 +121,31 @@ def build_context(user_id: str, user_message: str = "", target_date: date = None
             f"Recovery: {whoop.recovery_score}, HRV: {whoop.hrv_ms}ms, "
             f"Resting HR: {whoop.resting_hr}bpm, Sleep: {whoop.sleep_duration_hours}h"
         )
+
+    # Whoop trend 7 dagen — bij rich context
+    if rich:
+        week_ago = today - timedelta(days=7)
+        whoop_week = (
+            WhoopData.query
+            .filter(WhoopData.user_id == user_id, WhoopData.date >= week_ago, WhoopData.date < today)
+            .order_by(WhoopData.date)
+            .all()
+        )
+        if whoop_week:
+            recovery_scores = [w.recovery_score for w in whoop_week if w.recovery_score]
+            sleep_hours = [w.sleep_duration_hours for w in whoop_week if w.sleep_duration_hours]
+            sleep_needed = [w.sleep_needed_hours for w in whoop_week if w.sleep_needed_hours]
+            recovery_trend = ", ".join(str(s) for s in recovery_scores)
+            avg_recovery = round(sum(recovery_scores) / len(recovery_scores)) if recovery_scores else None
+            avg_sleep = round(sum(sleep_hours) / len(sleep_hours), 1) if sleep_hours else None
+            avg_needed = round(sum(sleep_needed) / len(sleep_needed), 1) if sleep_needed else None
+            sleep_deficit = round(avg_needed - avg_sleep, 1) if avg_sleep and avg_needed else None
+            whoop_str += (
+                f"\nRecovery last 7d: [{recovery_trend}] avg {avg_recovery}%"
+            )
+            if avg_sleep:
+                deficit_str = f" (deficit: {sleep_deficit}h/night)" if sleep_deficit and sleep_deficit > 0.3 else ""
+                whoop_str += f"\nSleep avg: {avg_sleep}h (needed: {avg_needed}h){deficit_str}"
 
     # Today's nutrition — show individual items so Claude knows exactly what's already logged
     nutrition = NutritionLog.query.filter_by(user_id=user_id, date=today).all()
