@@ -10,7 +10,7 @@ from app.services.workout_utils import calc_workout_kcal, dedupe_workouts
 
 MODEL = "claude-sonnet-4-6"
 MAX_HISTORY_FOOD = 0
-MAX_HISTORY_DEFAULT = 8
+MAX_HISTORY_DEFAULT = 4
 
 FOOD_KEYWORDS = {
     "gegeten", "gedronken", "geëten", "ontbijt", "lunch", "diner", "avondeten",
@@ -93,25 +93,36 @@ def build_context(user_id: str, user_message: str = "", target_date: date = None
     )
     weight_str = f"{latest_weight.weight_kg}kg ({latest_weight.date})" if latest_weight else "No data"
 
-    # Weight trend — 30 dagen bij rich context, anders alleen laatste waarde
+    # Weight trend — bij rich context: 6 maanden maandgemiddelden + 30d detail
     if rich:
-        month_ago = today - timedelta(days=30)
-        weights = (
+        six_months_ago = today - timedelta(days=180)
+        all_weights = (
             WeightLog.query
-            .filter(WeightLog.user_id == user_id, WeightLog.date >= month_ago)
+            .filter(WeightLog.user_id == user_id, WeightLog.date >= six_months_ago)
             .order_by(WeightLog.date)
             .all()
         )
-        if weights:
-            first_w = weights[0].weight_kg
-            last_w = weights[-1].weight_kg
-            change = round(last_w - first_w, 1)
-            trend = f"+{change}kg" if change > 0 else f"{change}kg"
-            weight_str = (
-                f"{last_w}kg (30d trend: {trend}, "
-                f"min {min(w.weight_kg for w in weights)}kg, "
-                f"max {max(w.weight_kg for w in weights)}kg)"
-            )
+        if all_weights:
+            # Maandelijkse gemiddelden
+            from collections import defaultdict
+            by_month = defaultdict(list)
+            for w in all_weights:
+                key = w.date.strftime("%b %Y")
+                by_month[key].append(w.weight_kg)
+            monthly_avgs = []
+            for month_key, vals in by_month.items():
+                avg = round(sum(vals) / len(vals), 1)
+                monthly_avgs.append(f"{month_key}: {avg}kg")
+            # 30d detail
+            recent = [w for w in all_weights if w.date >= today - timedelta(days=30)]
+            if recent:
+                change = round(recent[-1].weight_kg - recent[0].weight_kg, 1)
+                trend = f"+{change}kg" if change > 0 else f"{change}kg"
+                weight_str = (
+                    f"{recent[-1].weight_kg}kg | 30d: {trend} "
+                    f"(min {min(w.weight_kg for w in recent)}kg, max {max(w.weight_kg for w in recent)}kg)\n"
+                    f"Monthly averages: {', '.join(monthly_avgs)}"
+                )
 
     # Today's Whoop data (always, it's small)
     whoop = WhoopData.query.filter_by(user_id=user_id, date=today).first()
