@@ -53,6 +53,17 @@ def _needs_rich_context(text: str) -> bool:
     lower = text.lower()
     return any(kw in lower for kw in WORKOUT_CONTEXT_KEYWORDS)
 
+LONG_HISTORY_KEYWORDS = {
+    "journey", "maanden", "months", "afgelopen", "analyse", "analyzeer", "analyseer",
+    "progress", "voortgang", "long term", "lange termijn", "overzicht", "overview",
+    "history", "historisch", "gewichtsverloop", "weight loss", "afvallen",
+    "patroon", "pattern", "verloop",
+}
+
+def _needs_long_history(text: str) -> bool:
+    lower = text.lower()
+    return any(kw in lower for kw in LONG_HISTORY_KEYWORDS)
+
 
 HEIGHT_CM = 192
 DATE_OF_BIRTH = date(1999, 10, 3)
@@ -85,6 +96,7 @@ def calculate_tdee(user_id: str, today: date) -> str:
 def build_context(user_id: str, user_message: str = "", target_date: date = None) -> str:
     today = target_date or date.today()
     rich = _needs_rich_context(user_message)
+    long_history = _needs_long_history(user_message)
 
     # Latest weight (always)
     latest_weight = (
@@ -93,36 +105,34 @@ def build_context(user_id: str, user_message: str = "", target_date: date = None
     )
     weight_str = f"{latest_weight.weight_kg}kg ({latest_weight.date})" if latest_weight else "No data"
 
-    # Weight trend — bij rich context: 6 maanden maandgemiddelden + 30d detail
-    if rich:
-        six_months_ago = today - timedelta(days=180)
-        all_weights = (
+    # Weight trend — bij rich: 30d detail; bij long_history: ook 6 maanden maandgemiddelden
+    if rich or long_history:
+        lookback = timedelta(days=180) if long_history else timedelta(days=30)
+        w_since = today - lookback
+        period_weights = (
             WeightLog.query
-            .filter(WeightLog.user_id == user_id, WeightLog.date >= six_months_ago)
+            .filter(WeightLog.user_id == user_id, WeightLog.date >= w_since)
             .order_by(WeightLog.date)
             .all()
         )
-        if all_weights:
-            # Maandelijkse gemiddelden
-            from collections import defaultdict
-            by_month = defaultdict(list)
-            for w in all_weights:
-                key = w.date.strftime("%b %Y")
-                by_month[key].append(w.weight_kg)
-            monthly_avgs = []
-            for month_key, vals in by_month.items():
-                avg = round(sum(vals) / len(vals), 1)
-                monthly_avgs.append(f"{month_key}: {avg}kg")
-            # 30d detail
-            recent = [w for w in all_weights if w.date >= today - timedelta(days=30)]
-            if recent:
-                change = round(recent[-1].weight_kg - recent[0].weight_kg, 1)
-                trend = f"+{change}kg" if change > 0 else f"{change}kg"
-                weight_str = (
-                    f"{recent[-1].weight_kg}kg | 30d: {trend} "
-                    f"(min {min(w.weight_kg for w in recent)}kg, max {max(w.weight_kg for w in recent)}kg)\n"
-                    f"Monthly averages: {', '.join(monthly_avgs)}"
+        if period_weights:
+            recent_30 = [w for w in period_weights if w.date >= today - timedelta(days=30)]
+            base = recent_30 if recent_30 else period_weights
+            change = round(base[-1].weight_kg - base[0].weight_kg, 1)
+            trend = f"+{change}kg" if change > 0 else f"{change}kg"
+            weight_str = (
+                f"{base[-1].weight_kg}kg | 30d: {trend} "
+                f"(min {min(w.weight_kg for w in base)}kg, max {max(w.weight_kg for w in base)}kg)"
+            )
+            if long_history:
+                from collections import defaultdict
+                by_month = defaultdict(list)
+                for w in period_weights:
+                    by_month[w.date.strftime("%b %Y")].append(w.weight_kg)
+                monthly = ", ".join(
+                    f"{k}: {round(sum(v)/len(v),1)}kg" for k, v in by_month.items()
                 )
+                weight_str += f"\nMonthly averages (6m): {monthly}"
 
     # Today's Whoop data (always, it's small)
     whoop = WhoopData.query.filter_by(user_id=user_id, date=today).first()
