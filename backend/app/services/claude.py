@@ -86,7 +86,7 @@ def calculate_tdee(user_id: str, today: date) -> str:
     workout_kcal, workout_notes = calc_workout_kcal(todays_workouts, weight_kg)
 
     tdee = round(bmr + step_kcal + tef + workout_kcal)
-    breakdown = f"BMR {round(bmr)} + steps {round(step_kcal)} + TEF {round(tef)}"
+    breakdown = f"BMR {round(bmr)} + ~{AVG_DAILY_STEPS} steps ({round(step_kcal)} kcal) + TEF {round(tef)}"
     if workout_notes:
         breakdown += " + " + " + ".join(workout_notes)
 
