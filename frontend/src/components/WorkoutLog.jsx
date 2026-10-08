@@ -124,7 +124,7 @@ function Stat({ label, value, sub }) {
     <div className="flex flex-col">
       <span className="text-base font-bold text-gray-900 leading-tight">{value}</span>
       {sub && <span className="text-[10px] text-gray-400">{sub}</span>}
-      <span className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">{label}</span>
+      {label && <span className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">{label}</span>}
     </div>
   );
 }
@@ -290,11 +290,11 @@ function GarminStats({ raw, workoutId }) {
       {/* Main stats grid */}
       <div className="grid grid-cols-3 gap-x-4 gap-y-3 mt-1">
         {km && <Stat label="Afstand" value={`${km} km`} />}
-        {isRun && pacePerKm && <Stat label="Tempo" value={pacePerKm} sub="min/km" />}
+        {isRun && pacePerKm && <Stat value={pacePerKm} sub="min/km" />}
         {!isRun && avgKmh && <Stat label="Gem. snelheid" value={`${avgKmh} km/h`} />}
         {!isRun && maxKmh && <Stat label="Max snelheid" value={`${maxKmh} km/h`} />}
         {raw.elevationGain > 0 && <Stat label="Hoogtemeters" value={`${Math.round(raw.elevationGain)} m`} />}
-        {raw.calories > 0 && <Stat label="Calorieën" value={Math.round(raw.calories)} sub="kcal" />}
+        {raw.calories > 0 && <Stat value={Math.round(raw.calories)} sub="kcal" />}
         {raw.averageHR > 0 && <Stat label="Gem. HR" value={`${Math.round(raw.averageHR)} bpm`} />}
         {raw.maxHR > 0 && <Stat label="Max HR" value={`${Math.round(raw.maxHR)} bpm`} />}
       </div>
@@ -330,7 +330,7 @@ function WorkoutCard({ workout }) {
       {workout.source === "whoop" && (
         <div className="flex flex-wrap gap-4 pt-1">
           {workout.raw_json?.score?.kilojoule > 0 && (
-            <Stat label="Calorieën" value={`${Math.round(workout.raw_json.score.kilojoule / 4.184)} kcal`} />
+            <Stat value={Math.round(workout.raw_json.score.kilojoule / 4.184)} sub="kcal" />
           )}
           {workout.raw_json?.score?.average_heart_rate > 0 && (
             <Stat label="Gem. HR" value={`${Math.round(workout.raw_json.score.average_heart_rate)} bpm`} />
