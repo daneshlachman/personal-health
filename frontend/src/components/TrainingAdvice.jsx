@@ -18,17 +18,17 @@ const md = {
 };
 
 const INTENSITY = {
-  rust: { label: "Rust", cls: "bg-gray-100 text-gray-600" },
-  laag: { label: "Laag", cls: "bg-green-50 text-green-700" },
-  gemiddeld: { label: "Gemiddeld", cls: "bg-amber-50 text-amber-700" },
-  hoog: { label: "Hoog", cls: "bg-orange-50 text-orange-700" },
+  rust: { label: "Rust", cls: "text-gray-600" },
+  laag: { label: "Laag", cls: "text-green-600" },
+  gemiddeld: { label: "Gemiddeld", cls: "text-amber-600" },
+  hoog: { label: "Hoog", cls: "text-orange-600" },
 };
 
-function Tile({ label, children }) {
+function Tile({ label, children, className = "text-gray-900" }) {
   return (
     <div className="flex flex-col gap-1 min-w-0">
       <span className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</span>
-      <span className="text-sm font-bold text-gray-900 truncate">{children}</span>
+      <span className={`text-sm font-bold truncate ${className}`}>{children}</span>
     </div>
   );
 }
@@ -113,10 +113,7 @@ export default function TrainingAdvice() {
               <div className="grid grid-cols-3 gap-3">
                 <Tile label="Type">{summary.type}</Tile>
                 <Tile label="Duur">{summary.duration_min > 0 ? `${summary.duration_min} min` : "—"}</Tile>
-                <div className="flex flex-col gap-1 items-start">
-                  <span className="text-[10px] text-gray-500 uppercase tracking-wide">Intensiteit</span>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${intensity.cls}`}>{intensity.label}</span>
-                </div>
+                <Tile label="Intensiteit" className={intensity.cls}>{intensity.label}</Tile>
               </div>
               <p className="text-sm text-gray-600 mt-3">{summary.headline}</p>
             </>
