@@ -85,18 +85,68 @@ def get_workouts():
     return jsonify([_workout_with_exercises(w) for w in workouts])
 
 
+MAX_RECOMMENDATIONS_PER_DAY = 2
+RECOMMENDATION_LOCK_ID = 7_301_002
+
+
+def _parse_date(value):
+    from datetime import date
+    return date.fromisoformat(value) if value else date.today()
+
+
+def _recommendation_state(user_id, target):
+    from app.models import TrainingRecommendation
+    rows = (
+        TrainingRecommendation.query.filter_by(user_id=user_id, date=target)
+        .order_by(TrainingRecommendation.created_at.desc()).all()
+    )
+    return {
+        "date": target.isoformat(),
+        "recommendation": rows[0].content if rows else None,
+        "created_at": rows[0].created_at.isoformat() if rows else None,
+        "remaining": max(0, MAX_RECOMMENDATIONS_PER_DAY - len(rows)),
+    }
+
+
+@workouts_bp.route("/workouts/recommendation", methods=["GET"])
+def get_training_recommendation():
+    user = _ensure_user()
+    try:
+        target = _parse_date(request.args.get("date"))
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    return jsonify(_recommendation_state(user.id, target))
+
+
 @workouts_bp.route("/workouts/recommendation", methods=["POST"])
 def training_recommendation():
-    from datetime import date
+    """Generate advice for a day. Max 2 per day; with auto=true only when none exists yet."""
+    from sqlalchemy import text
+    from app import db
+    from app.models import TrainingRecommendation
     from app.services.coach import recommend_training, CoachError
     user = _ensure_user()
     body = request.get_json(silent=True) or {}
     try:
-        target = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+        target = _parse_date(body.get("date"))
     except ValueError:
         return jsonify({"error": "invalid date"}), 400
+
+    # Serialize generation so two devices (or a double-fired effect) can't both spend a call
+    db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": RECOMMENDATION_LOCK_ID})
+    state = _recommendation_state(user.id, target)
+    if body.get("auto") and state["recommendation"]:
+        db.session.commit()
+        return jsonify(state)
+    if state["remaining"] == 0:
+        db.session.commit()
+        return jsonify({**state, "error": f"Max {MAX_RECOMMENDATIONS_PER_DAY} adviezen per dag"}), 429
+
     try:
-        text = recommend_training(user.id, target)
+        content = recommend_training(user.id, target)
     except CoachError as e:
-        return jsonify({"error": str(e)}), 502
-    return jsonify({"date": target.isoformat(), "recommendation": text})
+        db.session.rollback()
+        return jsonify({**state, "error": str(e)}), 502
+    db.session.add(TrainingRecommendation(user_id=user.id, date=target, content=content))
+    db.session.commit()
+    return jsonify(_recommendation_state(user.id, target))

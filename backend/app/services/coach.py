@@ -162,6 +162,12 @@ def recommend_training(user_id: str, target: date) -> str:
     except anthropic.APIConnectionError as e:
         raise CoachError("Could not reach Claude") from e
 
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        current_app.logger.info(
+            f"Coach usage: input={getattr(usage, 'input_tokens', '?')} output={getattr(usage, 'output_tokens', '?')}"
+        )
+
     if response.stop_reason == "refusal":
         raise CoachError("Claude declined to answer")
 

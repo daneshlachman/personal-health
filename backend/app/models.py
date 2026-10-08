@@ -193,3 +193,13 @@ class ChatMessage(db.Model):
             "date": self.date.isoformat() if self.date else None,
             "created_at": self.created_at.isoformat(),
         }
+
+
+class TrainingRecommendation(db.Model):
+    __tablename__ = "training_recommendations"
+
+    id = db.Column(db.String(36), primary_key=True, default=_uuid)
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=_now)
