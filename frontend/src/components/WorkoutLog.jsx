@@ -283,7 +283,6 @@ function GarminStats({ raw, workoutId }) {
   const pacePerKm = (raw.averageSpeed > 0)
     ? (() => { const s = 1000 / raw.averageSpeed; return `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,"0")}`; })()
     : null;
-  const teLabel = raw.trainingEffectLabel?.toLowerCase().replace(/_/g," ");
 
   return (
     <div>
@@ -291,14 +290,12 @@ function GarminStats({ raw, workoutId }) {
       <div className="grid grid-cols-3 gap-x-4 gap-y-3 mt-1">
         {km && <Stat label="Afstand" value={`${km} km`} />}
         {isRun && pacePerKm && <Stat label="Tempo" value={pacePerKm} sub="min/km" />}
-        {avgKmh && <Stat label="Gem. snelheid" value={`${avgKmh} km/h`} />}
+        {!isRun && avgKmh && <Stat label="Gem. snelheid" value={`${avgKmh} km/h`} />}
         {!isRun && maxKmh && <Stat label="Max snelheid" value={`${maxKmh} km/h`} />}
         {raw.elevationGain > 0 && <Stat label="Hoogtemeters" value={`${Math.round(raw.elevationGain)} m`} />}
         {raw.calories > 0 && <Stat label="Calorieën" value={Math.round(raw.calories)} sub="kcal" />}
         {raw.averageHR > 0 && <Stat label="Gem. HR" value={`${Math.round(raw.averageHR)} bpm`} />}
         {raw.maxHR > 0 && <Stat label="Max HR" value={`${Math.round(raw.maxHR)} bpm`} />}
-        {raw.maxTemperature && <Stat label="Temperatuur" value={`${raw.minTemperature}–${raw.maxTemperature}°C`} />}
-        {teLabel && <Stat label="Training effect" value={raw.aerobicTrainingEffect?.toFixed(1)} sub={teLabel} />}
       </div>
 
       <RouteAndCharts workoutId={workoutId} hasPolyline={raw.hasPolyline} isRun={isRun} />
