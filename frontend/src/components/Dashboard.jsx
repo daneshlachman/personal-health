@@ -407,7 +407,8 @@ export default function Dashboard({ onNavigate }) {
               tdee.balance < -150 ? "text-green-600" :
               "text-gray-700"
             }`}>
-              {tdee.balance > 0 ? "+" : ""}{tdee.balance.toLocaleString()}
+              {Math.abs(tdee.balance).toLocaleString()}
+              <span className="text-xs font-medium ml-1">{tdee.balance < 0 ? "deficit" : tdee.balance > 0 ? "surplus" : ""}</span>
             </span>
           </button>
         </div>
