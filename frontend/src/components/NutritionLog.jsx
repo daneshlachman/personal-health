@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { API } from "../utils/api";
+import { toDecimal } from "../utils/decimal";
 import { cachedFetch, setCache } from "../utils/cache";
 import { searchCommon } from "../utils/commonFoods";
 
@@ -169,9 +170,11 @@ function FoodSearchModal({ meal, date, onClose, onSaved }) {
               <span className="text-sm text-gray-600">Amount</span>
               <input
                 autoFocus
-                type="number"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={grams}
-                onChange={(e) => setGrams(e.target.value)}
+                onChange={(e) => setGrams(toDecimal(e.target.value))}
                 className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-base text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <span className="text-sm text-gray-400">g</span>
@@ -390,25 +393,25 @@ function EditEntryModal({ entry, onClose, onSaved }) {
         {baseAmount && (
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Amount ({unit})</label>
-            <input type="number" inputMode="decimal" value={amount} onChange={e => onAmount(e.target.value)} autoComplete="off" className={inputCls} />
+            <input type="text" inputMode="decimal" value={amount} onChange={e => onAmount(toDecimal(e.target.value))} autoComplete="off" className={inputCls} />
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Calories (kcal)</label>
-            <input type="number" inputMode="decimal" autoComplete="off" value={kcal} onChange={e => onKcal(e.target.value)} className={inputCls} />
+            <input type="text" inputMode="decimal" autoComplete="off" value={kcal} onChange={e => onKcal(toDecimal(e.target.value))} className={inputCls} />
           </div>
           <div>
             <label className="text-xs text-blue-400 mb-1 block">Protein (g)</label>
-            <input type="number" inputMode="decimal" autoComplete="off" value={protein} onChange={e => onMacro("p", e.target.value, setProtein)} className={inputCls} />
+            <input type="text" inputMode="decimal" autoComplete="off" value={protein} onChange={e => onMacro("p", toDecimal(e.target.value), setProtein)} className={inputCls} />
           </div>
           <div>
             <label className="text-xs text-amber-400 mb-1 block">Carbs (g)</label>
-            <input type="number" inputMode="decimal" autoComplete="off" value={carbs} onChange={e => onMacro("c", e.target.value, setCarbs)} className={inputCls} />
+            <input type="text" inputMode="decimal" autoComplete="off" value={carbs} onChange={e => onMacro("c", toDecimal(e.target.value), setCarbs)} className={inputCls} />
           </div>
           <div>
             <label className="text-xs text-rose-400 mb-1 block">Fat (g)</label>
-            <input type="number" inputMode="decimal" autoComplete="off" value={fat} onChange={e => onMacro("f", e.target.value, setFat)} className={inputCls} />
+            <input type="text" inputMode="decimal" autoComplete="off" value={fat} onChange={e => onMacro("f", toDecimal(e.target.value), setFat)} className={inputCls} />
           </div>
         </div>
         <button onClick={save} disabled={saving}

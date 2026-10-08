@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "../utils/api";
+import { toDecimal } from "../utils/decimal";
 import { cachedFetch, getCached, setCache } from "../utils/cache";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine,
@@ -469,10 +470,11 @@ export default function Dashboard({ onNavigate }) {
         {addingWeight && (
           <div className="flex items-center gap-2 mb-3">
             <input
-              type="number"
-              step="0.1"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
               value={weightInput}
-              onChange={e => setWeightInput(e.target.value)}
+              onChange={e => setWeightInput(toDecimal(e.target.value))}
               onKeyDown={e => e.key === "Enter" && saveWeight()}
               placeholder="88.5"
               autoFocus
