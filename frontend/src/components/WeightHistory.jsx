@@ -318,8 +318,6 @@ export default function WeightHistory({ onBack }) {
   const first = kgs[0];
   const change = latest != null && first != null ? +(latest - first).toFixed(1) : null;
   const changePct = change != null && first ? +((change / first) * 100).toFixed(1) : null;
-  const minW = kgs.length ? Math.min(...kgs) : null;
-  const maxW = kgs.length ? Math.max(...kgs) : null;
   const avg = kgs.length ? +(kgs.reduce((a, b) => a + b, 0) / kgs.length).toFixed(1) : null;
 
   const changeColor = change == null ? undefined : change < 0 ? "#22c55e" : change > 0 ? "#ef4444" : undefined;
@@ -351,7 +349,8 @@ export default function WeightHistory({ onBack }) {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
+        <KPI label="Start" value={first ? `${first} kg` : null} />
         <KPI label="Current" value={latest ? `${latest} kg` : null} />
         <KPI
           label={`Change (${PERIODS.find(p => p.days === days)?.label})`}
@@ -359,10 +358,6 @@ export default function WeightHistory({ onBack }) {
           sub={changePct != null ? `${changePct > 0 ? "+" : ""}${changePct}%` : null}
           color={changeColor}
         />
-        <KPI label="Lowest" value={minW ? `${minW} kg` : null} />
-        <KPI label="Highest" value={maxW ? `${maxW} kg` : null} />
-        <KPI label="Average" value={avg ? `${avg} kg` : null} />
-        <KPI label="Entries" value={kgs.length || null} sub="logged" />
       </div>
 
       {/* Chart */}
