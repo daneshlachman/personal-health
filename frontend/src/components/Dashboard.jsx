@@ -337,7 +337,6 @@ export default function Dashboard({ onNavigate }) {
     return <div className="flex items-center justify-center h-48 text-gray-400">Loading…</div>;
   }
 
-  const burnPct = tdee ? Math.min(tdee.burned_now / tdee.tdee, 1) : 0;
 
   return (
     <div className="p-4 space-y-4 max-w-lg mx-auto">
@@ -390,70 +389,27 @@ export default function Dashboard({ onNavigate }) {
         </div>
       </div>
 
-      {/* Calorie cards */}
+      {/* Calories: one compact row */}
       {tdee && (
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          {/* Burned */}
-          <div className="p-4 border-b border-gray-50 cursor-pointer" onClick={() => setShowCaloriesHistory(true)}>
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Burned</span>
-              <span className="text-xs text-gray-400">est. {tdee.tdee.toLocaleString()} kcal</span>
-            </div>
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-2xl font-bold text-gray-900">{tdee.burned_now.toLocaleString()}</span>
-              <span className="text-sm text-gray-400">kcal</span>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-1.5">
-              <div
-                className="h-1.5 rounded-full transition-all duration-500"
-                style={{ width: `${burnPct * 100}%`, backgroundColor: "#0ea5e9" }}
-              />
-            </div>
-            {tdee.workout_kcal > 0 && (
-              <p className="text-xs text-gray-400 mt-1.5">incl. {tdee.workout_kcal.toLocaleString()} kcal from workouts</p>
-            )}
-          </div>
-
-          {/* Consumed */}
-          <div className="p-4 border-b border-gray-50 cursor-pointer" onClick={() => onNavigate?.("nutrition")}>
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Consumed</span>
-            </div>
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-2xl font-bold text-gray-900">{tdee.consumed.toLocaleString()}</span>
-              <span className="text-sm text-gray-400">kcal</span>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-1.5">
-              <div
-                className="h-1.5 rounded-full transition-all duration-500"
-                style={{
-                  width: `${Math.min(tdee.consumed / tdee.tdee, 1) * 100}%`,
-                  backgroundColor: tdee.consumed > tdee.tdee ? "#f97316" : "#22c55e",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Balance */}
-          <div className="px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Balance</span>
-            <div className="flex items-center gap-2">
-              <span className={`text-lg font-bold ${
-                tdee.balance > 150 ? "text-orange-500" :
-                tdee.balance < -150 ? "text-green-600" :
-                "text-gray-700"
-              }`}>
-                {tdee.balance > 0 ? "+" : ""}{tdee.balance.toLocaleString()} kcal
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                tdee.balance > 150 ? "bg-orange-100 text-orange-600" :
-                tdee.balance < -150 ? "bg-green-100 text-green-700" :
-                "bg-gray-100 text-gray-600"
-              }`}>
-                {tdee.balance > 150 ? "Surplus" : tdee.balance < -150 ? "Deficit" : "Maintenance"}
-              </span>
-            </div>
-          </div>
+        <div className="bg-white rounded-2xl shadow-sm px-4 py-3.5 grid grid-cols-3 gap-2">
+          <button onClick={() => setShowCaloriesHistory(true)} className="flex flex-col items-start gap-0.5 text-left">
+            <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Burned</span>
+            <span className="text-lg font-bold text-gray-900">{tdee.burned_now.toLocaleString()}</span>
+          </button>
+          <button onClick={() => onNavigate?.("nutrition")} className="flex flex-col items-start gap-0.5 text-left border-l border-gray-100 pl-3">
+            <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Consumed</span>
+            <span className="text-lg font-bold text-gray-900">{tdee.consumed.toLocaleString()}</span>
+          </button>
+          <button onClick={() => setShowCaloriesHistory(true)} className="flex flex-col items-start gap-0.5 text-left border-l border-gray-100 pl-3">
+            <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Balance</span>
+            <span className={`text-lg font-bold ${
+              tdee.balance > 150 ? "text-orange-500" :
+              tdee.balance < -150 ? "text-green-600" :
+              "text-gray-700"
+            }`}>
+              {tdee.balance > 0 ? "+" : ""}{tdee.balance.toLocaleString()}
+            </span>
+          </button>
         </div>
       )}
 
