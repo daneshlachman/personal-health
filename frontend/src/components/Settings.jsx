@@ -70,6 +70,66 @@ function CalorieGoal() {
   );
 }
 
+function Goals() {
+  const [saved, setSaved] = useState("");
+  const [input, setInput] = useState("");
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    cachedFetch(`${API}/api/profile`, "profile", (p) => {
+      setSaved(p.goals || "");
+      setInput(p.goals || "");
+    });
+  }, []);
+
+  const save = async () => {
+    setStatus("saving");
+    try {
+      const res = await fetch(`${API}/api/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goals: input }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setStatus(data.error || "Save failed"); return; }
+      setCache("profile", data);
+      setSaved(data.goals || "");
+      setStatus("saved");
+    } catch {
+      setStatus("Save failed");
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-900">Goals</p>
+        <p className="text-xs text-gray-400 mt-0.5">Context for the training advice in Workouts</p>
+      </div>
+      <textarea
+        value={input}
+        onChange={(e) => { setInput(e.target.value); setStatus(null); }}
+        rows={5}
+        maxLength={2000}
+        placeholder={"Bijv.\n- Fitter worden, knieblessure aan het afbouwen\n- Cutten naar 85 kg\n- 3× per week kracht, 1–2× hardlopen"}
+        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+      />
+      <div className="flex items-center justify-between">
+        <span className={`text-xs ${status === "saved" ? "text-green-600" : "text-red-500"}`}>
+          {status === "saved" ? "Saved" : status && status !== "saving" ? status : ""}
+        </span>
+        <button
+          onClick={save}
+          disabled={input === saved || status === "saving"}
+          className="bg-brand-500 text-white rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40"
+        >
+          {status === "saving" ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings({ onBack, whoopConnected, syncing, onSync, onDisconnect }) {
   return (
     <div className="p-4 space-y-4 max-w-lg mx-auto">
@@ -77,6 +137,8 @@ export default function Settings({ onBack, whoopConnected, syncing, onSync, onDi
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-xl">←</button>
         <h1 className="text-xl font-bold text-gray-900">Settings</h1>
       </div>
+
+      <Goals />
 
       <CalorieGoal />
 

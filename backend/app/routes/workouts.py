@@ -83,3 +83,20 @@ def get_workouts():
         .all()
     )
     return jsonify([_workout_with_exercises(w) for w in workouts])
+
+
+@workouts_bp.route("/workouts/recommendation", methods=["POST"])
+def training_recommendation():
+    from datetime import date
+    from app.services.coach import recommend_training, CoachError
+    user = _ensure_user()
+    body = request.get_json(silent=True) or {}
+    try:
+        target = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    try:
+        text = recommend_training(user.id, target)
+    except CoachError as e:
+        return jsonify({"error": str(e)}), 502
+    return jsonify({"date": target.isoformat(), "recommendation": text})

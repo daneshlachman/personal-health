@@ -146,6 +146,7 @@ class UserProfile(db.Model):
     gender = db.Column(db.String(10))  # 'male' / 'female'
     avg_daily_steps = db.Column(db.Integer, default=10000)
     calorie_goal = db.Column(db.Integer)
+    goals = db.Column(db.Text)
     updated_at = db.Column(db.DateTime(timezone=True), default=_now, onupdate=_now)
 
     def to_dict(self):
@@ -155,6 +156,7 @@ class UserProfile(db.Model):
             "gender": self.gender,
             "avg_daily_steps": self.avg_daily_steps,
             "calorie_goal": self.calorie_goal,
+            "goals": self.goals,
         }
 
 

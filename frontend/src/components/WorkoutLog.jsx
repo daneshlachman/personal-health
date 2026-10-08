@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "../utils/api";
 import { cachedFetch } from "../utils/cache";
+import TrainingAdvice from "./TrainingAdvice";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 const SOURCE_COLOR = {
@@ -475,6 +476,8 @@ export default function WorkoutLog() {
           </button>
         </div>
       </div>
+
+      <TrainingAdvice />
 
       {/* Calendar */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">

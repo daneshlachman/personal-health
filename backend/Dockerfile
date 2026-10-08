@@ -15,4 +15,4 @@ ENV PORT=8000
 EXPOSE 8000
 
 # Run migrations then start gunicorn
-CMD ["sh", "-c", "flask db upgrade && gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"]
+CMD ["sh", "-c", "flask db upgrade && gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 180"]

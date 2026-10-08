@@ -47,6 +47,11 @@ def update_profile():
         if not 800 <= goal <= 6000:
             return jsonify({"error": "calorie_goal must be between 800 and 6000"}), 400
         profile.calorie_goal = goal
+    if "goals" in body:
+        goals = (body["goals"] or "").strip()
+        if len(goals) > 2000:
+            return jsonify({"error": "goals must be at most 2000 characters"}), 400
+        profile.goals = goals or None
     db.session.commit()
     return jsonify(profile.to_dict())
 
