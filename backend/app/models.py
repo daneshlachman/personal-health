@@ -145,6 +145,7 @@ class UserProfile(db.Model):
     date_of_birth = db.Column(db.Date)
     gender = db.Column(db.String(10))  # 'male' / 'female'
     avg_daily_steps = db.Column(db.Integer, default=10000)
+    calorie_goal = db.Column(db.Integer)
     updated_at = db.Column(db.DateTime(timezone=True), default=_now, onupdate=_now)
 
     def to_dict(self):
@@ -153,6 +154,7 @@ class UserProfile(db.Model):
             "date_of_birth": self.date_of_birth.isoformat() if self.date_of_birth else None,
             "gender": self.gender,
             "avg_daily_steps": self.avg_daily_steps,
+            "calorie_goal": self.calorie_goal,
         }
 
 

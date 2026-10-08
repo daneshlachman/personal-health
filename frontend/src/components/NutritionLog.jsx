@@ -520,6 +520,11 @@ export default function NutritionLog() {
   const [addingTo, setAddingTo] = useState(null);
   const [quickLogMeal, setQuickLogMeal] = useState(null);
   const [editEntry, setEditEntry] = useState(null);
+  const [calorieGoal, setCalorieGoal] = useState(GOALS.calories);
+
+  useEffect(() => {
+    cachedFetch(`${API}/api/profile`, "profile", (p) => p?.calorie_goal && setCalorieGoal(p.calorie_goal));
+  }, []);
 
   const toggleMacro = (macro) => setShowKcal(prev => prev === macro ? null : macro);
 
@@ -599,13 +604,13 @@ export default function NutritionLog() {
             <svg width={120} height={120} className="-rotate-90" style={{ display: "block" }}>
               <circle cx={60} cy={60} r={52} fill="none" stroke="#f0f0f0" strokeWidth={10} />
               <circle cx={60} cy={60} r={52} fill="none" stroke="#0ea5e9" strokeWidth={10}
-                strokeDasharray={`${Math.min(totals.calories / GOALS.calories, 1) * 2 * Math.PI * 52} ${2 * Math.PI * 52}`}
+                strokeDasharray={`${Math.min(totals.calories / calorieGoal, 1) * 2 * Math.PI * 52} ${2 * Math.PI * 52}`}
                 strokeLinecap="round" style={{ transition: "stroke-dasharray 0.4s ease" }} />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-2xl font-bold text-gray-900 leading-none">{Math.round(totals.calories)}</span>
               <span className="text-xs text-gray-400 mt-0.5">kcal</span>
-              <span className="text-[10px] text-gray-300 leading-none">of {GOALS.calories}</span>
+              <span className="text-[10px] text-gray-300 leading-none">of {calorieGoal}</span>
             </div>
           </div>
         </div>

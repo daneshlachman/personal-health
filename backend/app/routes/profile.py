@@ -1,7 +1,9 @@
 from flask import Blueprint, jsonify, request
 from datetime import date, datetime, timezone, timedelta
 
-from app.models import WeightLog, Workout, NutritionLog
+from app import db
+from app.models import WeightLog, Workout, NutritionLog, UserProfile
+from app.routes.chat import _ensure_user
 from app.services.workout_utils import calc_workout_kcal
 
 profile_bp = Blueprint("profile", __name__)
@@ -12,6 +14,41 @@ USER_ID = "00000000-0000-0000-0000-000000000001"
 HEIGHT_CM = 192
 DATE_OF_BIRTH = date(1999, 10, 3)
 AVG_DAILY_STEPS = 10000
+DEFAULT_CALORIE_GOAL = 2400
+
+
+def _get_profile():
+    user = _ensure_user()
+    profile = UserProfile.query.filter_by(user_id=user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=user.id, calorie_goal=DEFAULT_CALORIE_GOAL)
+        db.session.add(profile)
+        db.session.commit()
+    return profile
+
+
+@profile_bp.route("/profile", methods=["GET"])
+def get_profile():
+    data = _get_profile().to_dict()
+    if data["calorie_goal"] is None:
+        data["calorie_goal"] = DEFAULT_CALORIE_GOAL
+    return jsonify(data)
+
+
+@profile_bp.route("/profile", methods=["PUT"])
+def update_profile():
+    profile = _get_profile()
+    body = request.get_json(silent=True) or {}
+    if "calorie_goal" in body:
+        try:
+            goal = int(body["calorie_goal"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "calorie_goal must be a number"}), 400
+        if not 800 <= goal <= 6000:
+            return jsonify({"error": "calorie_goal must be between 800 and 6000"}), 400
+        profile.calorie_goal = goal
+    db.session.commit()
+    return jsonify(profile.to_dict())
 
 
 
