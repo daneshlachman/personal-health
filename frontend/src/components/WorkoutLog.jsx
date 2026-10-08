@@ -43,19 +43,26 @@ function toLocalISO(date) {
   return `${y}-${m}-${d}`;
 }
 
-function CalendarMonth({ year, month, workoutsByDate, onDayClick, selectedDate }) {
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startMonday = getMonday(firstDay);
+// Month grid, or a single week row when weekStart (a Monday) is given
+function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, selectedDate }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const cells = [];
-  const cur = new Date(startMonday);
-  while (cur <= lastDay || cells.length % 7 !== 0) {
-    cells.push(new Date(cur));
-    cur.setDate(cur.getDate() + 1);
-    if (cells.length > 42) break;
+  if (weekStart) {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      cells.push(d);
+    }
+  } else {
+    const lastDay = new Date(year, month + 1, 0);
+    const cur = new Date(getMonday(new Date(year, month, 1)));
+    while (cur <= lastDay || cells.length % 7 !== 0) {
+      cells.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+      if (cells.length > 42) break;
+    }
   }
 
   return (
@@ -68,7 +75,7 @@ function CalendarMonth({ year, month, workoutsByDate, onDayClick, selectedDate }
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           const iso = toLocalISO(day);
-          const isCurrentMonth = day.getMonth() === month;
+          const isCurrentMonth = weekStart || day.getMonth() === month;
           const isToday = day.getTime() === today.getTime();
           const workouts = workoutsByDate[iso] || [];
           const isSelected = selectedDate === iso;
@@ -364,6 +371,8 @@ export default function WorkoutLog() {
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [calView, setCalView] = useState("week");
+  const [weekStart, setWeekStart] = useState(() => getMonday(now));
 
   const fetchWorkouts = () => {
     setLoading(true);
@@ -420,6 +429,33 @@ export default function WorkoutLog() {
     setSelectedDate(null);
   };
 
+  const shiftWeek = (n) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + 7 * n);
+    setWeekStart(d);
+    setSelectedDate(null);
+  };
+
+  // Keep the switched-to view on the same period the user was looking at
+  const switchView = (view) => {
+    if (view === calView) return;
+    if (view === "month") {
+      const ref = selectedDate ? new Date(selectedDate + "T12:00:00") : weekStart;
+      setViewYear(ref.getFullYear());
+      setViewMonth(ref.getMonth());
+    } else {
+      const inView = (d) => d.getFullYear() === viewYear && d.getMonth() === viewMonth;
+      const ref = selectedDate ? new Date(selectedDate + "T12:00:00")
+        : inView(now) ? now : new Date(viewYear, viewMonth, 1);
+      setWeekStart(getMonday(ref));
+    }
+    setCalView(view);
+  };
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const fmtShort = (d) => d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+
   const displayedWorkouts = workoutsByDate[selectedDate] || [];
 
   return (
@@ -427,25 +463,39 @@ export default function WorkoutLog() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Workouts</h1>
-        <button
-          onClick={syncAll} disabled={syncing}
-          className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg font-medium disabled:opacity-50"
-        >
-          {syncing ? "Syncing…" : "Sync"}
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-gray-100 rounded-lg p-0.5">
+            {[["week", "Week"], ["month", "Maand"]].map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => switchView(v)}
+                className={`text-xs px-3 py-1 rounded-md font-medium transition-colors ${calView === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={syncAll} disabled={syncing}
+            className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg font-medium disabled:opacity-50"
+          >
+            {syncing ? "Syncing…" : "Sync"}
+          </button>
+        </div>
       </div>
 
       {/* Calendar */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <button onClick={prevMonth} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">‹</button>
+          <button onClick={calView === "week" ? () => shiftWeek(-1) : prevMonth} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">‹</button>
           <span className="text-sm font-semibold text-gray-800">
-            {MONTHS[viewMonth]} {viewYear}
+            {calView === "week" ? `${fmtShort(weekStart)} – ${fmtShort(weekEnd)}` : `${MONTHS[viewMonth]} ${viewYear}`}
           </span>
-          <button onClick={nextMonth} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">›</button>
+          <button onClick={calView === "week" ? () => shiftWeek(1) : nextMonth} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">›</button>
         </div>
         <CalendarMonth
           year={viewYear} month={viewMonth}
+          weekStart={calView === "week" ? weekStart : null}
           workoutsByDate={workoutsByDate}
           onDayClick={(d) => setSelectedDate(d === selectedDate ? null : d)}
           selectedDate={selectedDate}
