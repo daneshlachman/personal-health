@@ -1,22 +1,23 @@
 # Danesh Health — Project Documentation
 
 ## Wat is dit?
-Personal health dashboard dat data uit Whoop, Garmin en Hevy samenvoegt met AI-powered voedingslogging via Claude. Begonnen als React PWA, wordt herbouwd als native iOS app (React Native + Expo).
+Personal health dashboard (PWA) dat data uit Whoop, Garmin en Hevy samenvoegt met AI-powered voedingslogging via Claude. Alleen voor eigen gebruik: geïnstalleerd op iPhone via Safari → "Zet op beginscherm". Een native iOS app (Expo) is gestopt op 2026-10-08 — staat nog in git history (`ios/`, laatste versie in commit `588fc15`).
 
 ## Repo structuur
 ```
 danesh-health/
-  backend/        Flask REST API (Python) — gedeeld door PWA én iOS app
-  frontend/       React + Vite PWA (bestaand, referentie voor design)
-  ios/            React Native + Expo app (in ontwikkeling)
+  backend/        Flask REST API (Python) → Azure Container Apps
+  frontend/       React + Vite + Tailwind PWA → Azure Static Web Apps
   CLAUDE.md       Dit bestand
 ```
 
+Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-frontend.yml`). Backend draait `flask db upgrade` bij container start, dus migraties gaan automatisch mee.
+
 ---
 
-## Backend (Flask — niet aanpassen tenzij nodig)
+## Backend (Flask)
 
-**URL productie:** via Azure Container Apps (zie `.env`)
+**URL productie:** zie Dev setup
 **URL lokaal:** `http://localhost:8000`
 
 ### Alle API endpoints
@@ -103,171 +104,40 @@ UserProfile:  { height_cm, date_of_birth, gender, avg_daily_steps }
 
 ---
 
-## iOS App (React Native + Expo)
+## Frontend (PWA)
 
-**Locatie:** `ios/`
-**Stack:** Expo SDK, React Native, TypeScript
+Componenten in `frontend/src/components/`: Dashboard, NutritionLog, WorkoutLog, Chat, WeightHistory, WhoopHistory, CaloriesHistory.
 
-### Navigatie structuur
-```
-App
-└─ BottomTabNavigator
-   ├─ Dashboard (tab 1)
-   │   ├─ WhoopHistoryScreen (push)
-   │   ├─ WeightHistoryScreen (push)
-   │   └─ CaloriesHistoryScreen (push)
-   ├─ Nutrition (tab 2)
-   │   └─ FoodSearchModal (modal)
-   ├─ Workouts (tab 3)
-   │   └─ WorkoutDetailScreen (push)
-   └─ Chat (tab 4)
-```
+- **Dashboard**: datum nav + kalender, Recovery / Sleep / Steps ringen naast elkaar, calorie kaarten (Burned/Consumed/Balance), mini weight chart, Whoop sync/connect.
+- **Whoop ring kleuren**: recovery ≥67 groen, ≥34 geel, anders rood. Sleep ≥85 groen, ≥70 blauw, anders rood. Steps ≥10k groen.
+- **Getalvelden**: altijd `type="text" inputMode="decimal"` + `toDecimal()` uit `utils/decimal.js`. `type="number"` slikt "86,3" op een NL iPhone.
+- **Inputs**: `text-base` (16px) anders zoomt iOS in; `autoComplete="off"`.
 
-### Design systeem (overnemen van PWA)
-
-**Kleuren**
-```javascript
-export const colors = {
-  brand: {
-    50:  '#f0f9ff',
-    500: '#0ea5e9',   // primair — sky blue
-    600: '#0284c7',
-    700: '#0369a1',
-  },
-  status: {
-    green:  '#22c55e',
-    red:    '#ef4444',
-    yellow: '#eab308',
-    orange: '#f97316',
-  },
-  macro: {
-    protein: '#60a5fa',   // blue
-    carbs:   '#fbbf24',   // amber
-    fat:     '#fb7185',   // rose
-  },
-  bg:    '#f1f5f9',   // lichtgrijs pagina achtergrond
-  card:  '#ffffff',
-  gray: {
-    100: '#f3f4f6',
-    200: '#e5e7eb',
-    400: '#9ca3af',
-    600: '#4b5563',
-    900: '#111827',
-  }
-}
-```
-
-**Whoop ring kleuren (recovery)**
-- ≥ 67%: groen (#22c55e)
-- ≥ 34%: geel (#eab308)
-- < 34%: rood (#ef4444)
-
-**Whoop ring kleuren (sleep)**
-- ≥ 85%: groen
-- ≥ 70%: blauw (brand-500)
-- < 70%: rood
-
-**Spacing & radius**
-```javascript
-export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20 }
-export const radius  = { sm: 8, md: 12, lg: 16, xl: 20, full: 9999 }
-```
-
-**Card stijl**
-```javascript
-{ backgroundColor: '#fff', borderRadius: 16, padding: 16,
-  shadowColor: '#000', shadowOffset: {width:0, height:1},
-  shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 }
-```
-
-### Schermen & wat ze doen
-
-**DashboardScreen**
-- Date nav (gisteren/vandaag/morgen, kalender picker)
-- 2×2 Whoop rings (recovery, sleep, HRV, resting HR)
-- Calorie kaarten: Burned / Consumed / Balance
-- Mini weight chart (1W)
-- Sync knop Whoop
-
-**NutritionScreen**
-- Grote calorie ring + 3 macro rings (protein/carbs/fat)
-- Maaltijd secties: Breakfast, Lunch, Dinner, Snacks
-- Per item: description, kcal, P/C/F macro badges, delete
-- + knop opent FoodSearchModal (USDA + OpenFoodFacts)
-
-**WorkoutsScreen**
-- Kalender met emoji indicators (💪🚲🏃)
-- Workout kaart per dag: titel, duur, source
-- Hevy: sets/reps/gewicht per oefening
-- Garmin: afstand, HR, hoogteverschil, kaart (MapKit)
-- Sync knop
-
-**WeightHistoryScreen**
-- KPI grid (huidig, verandering, laagste, hoogste, gemiddelde)
-- LineChart gewicht
-- Foto galerij (horizontaal scrollbaar)
-- Compare screen (split-screen 2 foto's, zoom knoppen)
-- Edit/delete modal
-
-**WhoopHistoryScreen**
-- Tab: Recovery / Sleep
-- KPI grid + LineCharts per metric
-
-**ChatScreen**
-- Datum nav
-- Berichtenbubbles (user rechts brand-500, assistant links wit)
-- Markdown rendering voor assistant berichten
-- Claude logt voedsel automatisch als je het vertelt
-
-### Voortgang
-
-#### ✅ Gebouwd & werkend (getest in browser)
-- Expo project init + navigatie structuur
-- API client (axios) → `ios/src/utils/api.ts`, URL: `https://danesh-health-backend.agreeableground-243793ea.northeurope.azurecontainerapps.io`
-- Design tokens → `ios/src/utils/colors.ts`
-- `RingChart` component → `ios/src/components/RingChart.tsx` (SVG circulaire progress)
-- `DateNav` component → `ios/src/components/DateNav.tsx` (herbruikbare datum nav)
-- `LineChart` component → `ios/src/components/LineChart.tsx` (custom SVG lijn chart)
-- **DashboardScreen** → Whoop rings + calorie kaarten (tappable → CaloriesHistory) + weight chart (tappable → WeightHistory)
-- **NutritionScreen** → calorie ring + 3 macro rings + maaltijdsecties met delete
-- **WorkoutsScreen** → maandkalender met emoji's, uitklapbare workout kaarten (Hevy sets/reps, Garmin stats), sync knop, deduplicatie (Hevy > Garmin > Whoop)
-- **ChatScreen** → berichtenbubbles, markdown rendering, cleanReply (JSON blocks weggehaald), datum nav
-- **WeightHistoryScreen** → KPI grid, lijn chart met periode knoppen, foto galerij (horizontaal), entries list met edit/delete/add modal
-- **CaloriesHistoryScreen** → KPI cards, heatmap kalender (klikbaar, deficit=groen/surplus=oranje), wekelijks staafdiagram
-- Stack navigatie voor Dashboard tab (DashboardMain → WeightHistory / CaloriesHistory)
-
-#### 📋 Nog te bouwen
-- **WhoopHistoryScreen** — referentie: `frontend/src/components/WhoopHistory.jsx` (recovery tab + sleep tab, KPI grid, LineCharts)
-- **FoodSearchModal** in Nutrition — referentie: `frontend/src/components/NutritionLog.jsx` → `FoodSearchModal`
-- **AI Quick Log** in Nutrition (`POST /api/nutrition/log-ai`) — al in PWA, nog niet in iOS
-- **Foto upload** in WeightHistory — `expo-image-picker`, comprimeer naar base64 JPEG
-- **Compare screen** in WeightHistory (2 foto's naast elkaar + zoom knoppen)
-- **Whoop sync knop** op Dashboard
-- **HealthKit** integratie — via `react-native-health` (later, optioneel)
-
-#### 🔧 Bekende issues / TODO
-- Testen op echte iPhone: werklaptop firewall blokkeert tunnel. Thuis: `npx expo start` → Expo Go scannen
-- Dashboard heeft nog geen date picker kalender (alleen DateNav pijltjes)
-
-#### 🏗️ Architectuur verbeteringen (later oppakken)
-- **Workout deduplicatie hoort in de backend**: nu op 3 plekken (`workout_utils.py`, `WorkoutLog.jsx`, `WorkoutsScreen.tsx`). Fix: `dedupe_workouts()` in `backend/app/routes/workouts.py` vóór de return.
-
-#### 🔧 Dev setup
-- Werklaptop: `npx expo start` + `w` voor browser preview (geen tunnel mogelijk door firewall)
-- Thuis/privé laptop: `npx expo start` → scan QR in Expo Go app op iPhone
+## Dev setup
+- **Werklaptop**: netwerk blokkeert poort 5432 naar Azure Postgres → lokale backend kan niet. Draai alleen de frontend lokaal tegen de productie-backend: `cd frontend && npm run dev` (vereist `frontend/.env.local` met `VITE_API_BASE_URL=<backend-url>`). Backend-wijzigingen testen = pushen.
+- **Backend lokaal** (thuis): `cd backend && .\venv\Scripts\flask --app wsgi run --port 8000 --debug`. Let op: `backend/.env` wijst naar de **productie**-database.
 - Backend URL: `https://danesh-health-backend.agreeableground-243793ea.northeurope.azurecontainerapps.io`
-- Frontend lokaal: `cd frontend && npm run dev` (vereist `frontend/.env.local` met `VITE_API_BASE_URL=<backend-url>`)
+- Geen `gh` CLI op de werklaptop; deploy status checken door een live endpoint te pollen.
+
+## Whoop integratie — aandachtspunten
+- Refresh tokens zijn single-use: refresh vraagt `scope=offline` en draait onder een row lock (`with_for_update`).
+- Sync draait onder `pg_advisory_xact_lock` — gelijktijdige syncs (React StrictMode in dev, 2 gunicorn workers) maakten eerder dubbele rijen. Sync ruimt dubbele dagen/workouts zelf op.
+- `POST /api/sync/whoop?days=N` (default 30) om gaten op te vullen.
+- Stappen: `step_count` uit `/cycle` (Whoop API sinds 2026-09-23), per cycle (wakker → wakker), gemapt op lokale startdatum. Open issue: lopende dag geeft soms nog `null`.
+
+## Open punten
+- Workout deduplicatie (Hevy > Garmin > Whoop) zit in frontend én `workout_utils.py` — hoort in `backend/app/routes/workouts.py`.
+- TDEE gebruikt nog vaste `AVG_DAILY_STEPS` — kan nu echte Whoop stappen gebruiken.
+- Dashboard heeft een hardcoded ReferenceLine op 28 Mar in de weight chart.
 
 ---
 
 ## Handige context voor nieuwe sessies
 
 ### Als je nieuw bent in dit project, lees dit:
-1. De **backend** staat op Azure en hoeft niet aangeraakt te worden
-2. De **PWA** in `frontend/` is het referentie-design — we bouwen dit na in React Native
-3. De **iOS app** staat in `ios/` — dit is waar we aan werken
-4. Backend gebruikt **geen auth** (single user) — iOS app stuurt gewoon requests, geen tokens nodig
-5. API base URL staat in `ios/src/utils/api.ts` als `API_BASE`
+1. Backend op Azure, frontend PWA — beide in deze repo, push naar `master` deployt
+2. Backend gebruikt **geen auth** (single user) — frontend stuurt gewoon requests
+3. API base URL: `frontend/src/utils/api.js` (uit `VITE_API_BASE_URL`)
 
 ### Valkuilen
 - Garmin scraping kan breken na Garmin update — niet afhankelijk van maken voor core features
