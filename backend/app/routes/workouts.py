@@ -103,6 +103,7 @@ def _recommendation_state(user_id, target):
     return {
         "date": target.isoformat(),
         "recommendation": rows[0].content if rows else None,
+        "summary": rows[0].summary if rows else None,
         "created_at": rows[0].created_at.isoformat() if rows else None,
         "remaining": max(0, MAX_RECOMMENDATIONS_PER_DAY - len(rows)),
     }
@@ -143,10 +144,13 @@ def training_recommendation():
         return jsonify({**state, "error": f"Max {MAX_RECOMMENDATIONS_PER_DAY} adviezen per dag"}), 429
 
     try:
-        content = recommend_training(user.id, target)
+        result = recommend_training(user.id, target)
     except CoachError as e:
         db.session.rollback()
         return jsonify({**state, "error": str(e)}), 502
-    db.session.add(TrainingRecommendation(user_id=user.id, date=target, content=content))
+    db.session.add(TrainingRecommendation(
+        user_id=user.id, date=target, content=result["details"],
+        summary={k: result[k] for k in ("type", "duration_min", "intensity", "headline")},
+    ))
     db.session.commit()
     return jsonify(_recommendation_state(user.id, target))

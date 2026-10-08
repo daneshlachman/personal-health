@@ -202,4 +202,5 @@ class TrainingRecommendation(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
     date = db.Column(db.Date, nullable=False, index=True)
     content = db.Column(db.Text, nullable=False)
+    summary = db.Column(db.JSON)  # {type, duration_min, intensity, headline}
     created_at = db.Column(db.DateTime(timezone=True), default=_now)

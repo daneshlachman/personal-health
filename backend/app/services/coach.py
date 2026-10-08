@@ -1,4 +1,5 @@
 """Training recommendation: goals + 7 days of Whoop recovery + 7 days of workouts → Claude."""
+import json
 from datetime import date, timedelta
 
 import anthropic
@@ -25,12 +26,30 @@ cardio as compensation for eating.
 - Use only the data given. If something important is missing (no Whoop data today, no logged \
 workouts), say so in one line and decide anyway.
 
-Answer in Dutch, in markdown, short enough to read on a phone:
-1. One bold line with the verdict for today (for example: **Vandaag: upper body kracht, gemiddelde intensiteit**).
-2. The session: concrete exercises or cardio with sets × reps / duration and intensity (RPE or heart-rate zone). \
-Max ~8 lines.
-3. "Waarom" with 2–3 bullets that point at the specific numbers that drove the decision.
+Answer in Dutch, as JSON with these fields:
+- type: the kind of session in at most 3 words (for example "Duurloop Z2", "Upper body kracht", "Rust").
+- duration_min: total session length in minutes, 0 for a rest day.
+- intensity: one of "rust", "laag", "gemiddeld", "hoog".
+- headline: one sentence of at most 100 characters with the main reason \
+(for example "Recovery 46% na 4 goede dagen, dus rustig aan").
+- details: markdown, short enough to read on a phone. First the session: concrete exercises or cardio \
+with sets × reps / duration and intensity (RPE or heart-rate zone), max ~8 lines. Then "**Waarom**" with \
+2–3 bullets that point at the specific numbers that drove the decision. Don't repeat type, duration or \
+intensity as a heading; they are shown separately.
 No intro, no closing pleasantries."""
+
+RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "type": {"type": "string"},
+        "duration_min": {"type": "integer"},
+        "intensity": {"type": "string", "enum": ["rust", "laag", "gemiddeld", "hoog"]},
+        "headline": {"type": "string"},
+        "details": {"type": "string"},
+    },
+    "required": ["type", "duration_min", "intensity", "headline", "details"],
+    "additionalProperties": False,
+}
 
 
 def _fmt(v, unit="", digits=0):
@@ -138,7 +157,7 @@ class CoachError(Exception):
     pass
 
 
-def recommend_training(user_id: str, target: date) -> str:
+def recommend_training(user_id: str, target: date) -> dict:
     context = build_training_context(user_id, target)
     client = anthropic.Anthropic(
         api_key=current_app.config["ANTHROPIC_API_KEY"], timeout=150, max_retries=0,
@@ -152,7 +171,13 @@ def recommend_training(user_id: str, target: date) -> str:
             # Claude Opus 5.5: thinking is always on; effort is the depth control.
             # Server-side fallback reroutes the request if the model declines it.
             extra_headers={"anthropic-beta": "server-side-fallback-2026-07-01"},
-            extra_body={"output_config": {"effort": "medium"}, "fallbacks": "default"},
+            extra_body={
+                "output_config": {
+                    "effort": "medium",
+                    "format": {"type": "json_schema", "schema": RESPONSE_SCHEMA},
+                },
+                "fallbacks": "default",
+            },
         )
     except anthropic.RateLimitError as e:
         raise CoachError("Claude is busy (rate limited), try again in a minute") from e
@@ -171,9 +196,13 @@ def recommend_training(user_id: str, target: date) -> str:
     if response.stop_reason == "refusal":
         raise CoachError("Claude declined to answer")
 
-    text = "\n".join(
-        b.text for b in response.content if getattr(b, "type", None) == "text" and getattr(b, "text", "")
-    ).strip()
-    if not text:
-        raise CoachError("Empty answer from Claude")
-    return text
+    # With output_config.format the text block is the JSON object
+    text = next(
+        (b.text for b in response.content if getattr(b, "type", None) == "text" and getattr(b, "text", "")), ""
+    )
+    if response.stop_reason == "max_tokens" or not text:
+        raise CoachError("Incomplete answer from Claude")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise CoachError("Could not read Claude's answer") from e
