@@ -398,7 +398,7 @@ export default function WeightHistory({ onBack }) {
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine x="03-28" stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: "28 Mar", position: "top", fontSize: 9, fill: "#f59e0b" }} />
               {avg && <ReferenceLine y={avg} stroke="#0ea5e9" strokeDasharray="4 4" strokeOpacity={0.3} />}
-              <Line type="monotone" dataKey="kg" stroke="#0ea5e9" strokeWidth={2} dot={false} connectNulls activeDot={{ r: 4, fill: "#0ea5e9", strokeWidth: 0 }} />
+              <Line type="monotone" dataKey="kg" stroke="#0ea5e9" strokeWidth={2} dot={data.length <= 90 ? { r: 3, fill: "#fff", stroke: "#0ea5e9", strokeWidth: 2 } : false} connectNulls activeDot={{ r: 4, fill: "#0ea5e9", strokeWidth: 0 }} />
             </LineChart>
           </ResponsiveContainer>
           );

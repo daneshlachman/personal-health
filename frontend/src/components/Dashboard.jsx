@@ -524,7 +524,7 @@ export default function Dashboard({ onNavigate }) {
                 dataKey="kg"
                 stroke="#0ea5e9"
                 strokeWidth={2}
-                dot={false}
+                dot={{ r: 3, fill: "#fff", stroke: "#0ea5e9", strokeWidth: 2 }}
                 activeDot={{ r: 4, fill: "#0ea5e9", strokeWidth: 0 }}
               />
             </LineChart>
