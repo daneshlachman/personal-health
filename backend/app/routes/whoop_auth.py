@@ -1,5 +1,6 @@
 """Whoop OAuth routes: /api/whoop/authorize and /api/whoop/callback."""
 from flask import Blueprint, redirect, request, jsonify, current_app
+from app import db
 from app.routes.chat import _ensure_user
 from app.services import whoop
 

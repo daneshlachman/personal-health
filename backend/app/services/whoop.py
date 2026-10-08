@@ -113,7 +113,12 @@ def _get_valid_token(user_id: str) -> str | None:
                 "refresh_token": token.refresh_token,
                 "client_id": current_app.config["WHOOP_CLIENT_ID"],
                 "client_secret": current_app.config["WHOOP_CLIENT_SECRET"],
+                # Without scope=offline Whoop returns no new refresh_token; the old one
+                # is single-use, so the next refresh would fail.
+                "scope": "offline",
             })
+            if not resp.ok:
+                current_app.logger.error(f"Whoop token refresh failed: {resp.status_code} {resp.text}")
             resp.raise_for_status()
             _save_token(user_id, resp.json())
             token = OAuthToken.query.filter_by(user_id=user_id, provider="whoop").first()
@@ -148,7 +153,9 @@ def _fetch_all_pages(access_token: str, path: str, params: dict = None) -> list:
 
 
 def is_connected(user_id: str) -> bool:
-    return OAuthToken.query.filter_by(user_id=user_id, provider="whoop").first() is not None
+    # A stored token whose refresh fails is useless — report it as disconnected
+    # so the frontend prompts a reconnect.
+    return _get_valid_token(user_id) is not None
 
 
 def _local_date(dt_utc: datetime, tz_offset_str: str) -> date:
@@ -165,13 +172,13 @@ def _local_date(dt_utc: datetime, tz_offset_str: str) -> date:
         return dt_utc.date()
 
 
-def sync(user_id: str) -> dict:
+def sync(user_id: str, days: int = 30) -> dict:
     access_token = _get_valid_token(user_id)
     if not access_token:
         return {"status": "error", "message": "Whoop not connected"}
 
     now = datetime.now(timezone.utc)
-    start = (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00Z")
+    start = (now - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
     end = now.strftime("%Y-%m-%dT23:59:59Z")
 
     try:

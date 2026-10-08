@@ -9,7 +9,8 @@ sync_bp = Blueprint("sync", __name__)
 @sync_bp.route("/sync/whoop", methods=["POST"])
 def sync_whoop():
     user = _ensure_user()
-    result = whoop.sync(user.id)
+    days = int(request.args.get("days", 30))
+    result = whoop.sync(user.id, days=days)
     return jsonify(result)
 
 
