@@ -79,6 +79,11 @@ def debug():
             results[url] = {"status": r.status_code, "body": r.text[:200]}
         except Exception as e:
             results[url] = {"error": str(e)}
+    # Full recent cycles + sleeps, to check step_count and cycle ↔ sleep mapping
+    for key, url in [("cycles", "https://api.prod.whoop.com/developer/v2/cycle"),
+                     ("sleeps", "https://api.prod.whoop.com/developer/v2/activity/sleep")]:
+        r = requests.get(url, headers={"Authorization": f"Bearer {token}"}, params={"limit": 3})
+        results[key] = r.json() if r.ok else {"status": r.status_code, "body": r.text[:500]}
     return jsonify(results)
 
 

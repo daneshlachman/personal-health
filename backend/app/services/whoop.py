@@ -288,9 +288,17 @@ def sync(user_id: str, days: int = 30) -> dict:
             "raw": r,
         })
 
-    # Step count lives on the cycle (wake-up → next wake-up), available since 2026-09-23.
-    # The current cycle carries steps-so-far. Date = local date of the cycle start,
-    # which matches the sleep end date used above.
+    # Step count lives on the cycle, available since 2026-09-23. The current cycle
+    # carries steps-so-far. A cycle starts at sleep onset (often before midnight), so
+    # its start date is usually the previous day. Map it through its sleep instead,
+    # so steps land on the same date as recovery/sleep.
+    cycle_id_to_date: dict[int, date] = {}
+    for s in sleep_records:
+        if s.get("cycle_id") and s.get("id") in sleep_id_to_date:
+            cycle_id_to_date[s["cycle_id"]] = sleep_id_to_date[s["id"]]
+    for r in recovery_records:
+        if r.get("cycle_id") and r.get("sleep_id") in sleep_id_to_date:
+            cycle_id_to_date.setdefault(r["cycle_id"], sleep_id_to_date[r["sleep_id"]])
     try:
         cycle_records = _fetch_all_pages(access_token, "/cycle", {"start": start, "end": end})
         for c in cycle_records:
@@ -299,11 +307,14 @@ def sync(user_id: str, days: int = 30) -> dict:
                 steps = (c.get("score") or {}).get("step_count")
             if steps is None:
                 continue
-            try:
-                start_dt = datetime.fromisoformat(c["start"].replace("Z", "+00:00"))
-                d = _local_date(start_dt, c.get("timezone_offset", "+00:00"))
-            except (KeyError, ValueError):
-                continue
+            d = cycle_id_to_date.get(c.get("id"))
+            if d is None:
+                # No scored sleep yet: sleep onset + 12h lands on the wake-up day
+                try:
+                    start_dt = datetime.fromisoformat(c["start"].replace("Z", "+00:00"))
+                    d = _local_date(start_dt + timedelta(hours=12), c.get("timezone_offset", "+00:00"))
+                except (KeyError, ValueError):
+                    continue
             day_map.setdefault(d, {})["step_count"] = steps
     except Exception as e:
         current_app.logger.warning(f"Whoop cycle/step sync failed: {e}")
