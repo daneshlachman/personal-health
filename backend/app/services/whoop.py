@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta, date
 
 import requests
 from flask import current_app
+from sqlalchemy import text
 
 from app import db
 from app.models import OAuthToken, WhoopData, WeightLog, Workout, User
@@ -100,13 +101,31 @@ def _save_token(user_id: str, token_data: dict):
     db.session.commit()
 
 
+def _token_expiring(token: OAuthToken) -> bool:
+    return bool(token.expires_at) and token.expires_at <= datetime.now(timezone.utc) + timedelta(minutes=5)
+
+
 def _get_valid_token(user_id: str) -> str | None:
     token = OAuthToken.query.filter_by(user_id=user_id, provider="whoop").first()
     if not token:
         return None
 
     # Refresh if expiring within 5 minutes
-    if token.expires_at and token.expires_at <= datetime.now(timezone.utc) + timedelta(minutes=5):
+    if _token_expiring(token):
+        # Refresh tokens are single-use: lock the row so concurrent requests
+        # (multiple gunicorn workers) don't both spend the same refresh_token.
+        # Whoever waits on the lock re-reads the row and finds it already refreshed.
+        token = (
+            OAuthToken.query.filter_by(user_id=user_id, provider="whoop")
+            .populate_existing().with_for_update().first()
+        )
+        if not token:
+            db.session.rollback()
+            return None
+        if not _token_expiring(token):
+            access_token = token.access_token
+            db.session.commit()  # release lock
+            return access_token
         try:
             resp = requests.post(WHOOP_TOKEN_URL, data={
                 "grant_type": "refresh_token",
@@ -120,9 +139,10 @@ def _get_valid_token(user_id: str) -> str | None:
             if not resp.ok:
                 current_app.logger.error(f"Whoop token refresh failed: {resp.status_code} {resp.text}")
             resp.raise_for_status()
-            _save_token(user_id, resp.json())
+            _save_token(user_id, resp.json())  # commits → releases lock
             token = OAuthToken.query.filter_by(user_id=user_id, provider="whoop").first()
         except Exception as e:
+            db.session.rollback()  # release lock
             current_app.logger.error(f"Whoop token refresh failed: {e}")
             return None
 
@@ -172,10 +192,29 @@ def _local_date(dt_utc: datetime, tz_offset_str: str) -> date:
         return dt_utc.date()
 
 
+WHOOP_SYNC_LOCK_ID = 7_301_001
+
+
+def _dedupe_whoop_days(user_id: str):
+    """Remove duplicate whoop_data rows per date, keeping the oldest."""
+    seen = set()
+    for row in WhoopData.query.filter_by(user_id=user_id).order_by(WhoopData.date, WhoopData.created_at).all():
+        if row.date in seen:
+            db.session.delete(row)
+        else:
+            seen.add(row.date)
+    db.session.flush()
+
+
 def sync(user_id: str, days: int = 30) -> dict:
     access_token = _get_valid_token(user_id)
     if not access_token:
         return {"status": "error", "message": "Whoop not connected"}
+
+    # Serialize syncs: two concurrent syncs (gunicorn workers, double-fired frontend
+    # effects) would each insert the same rows. The lock is released at the final commit.
+    db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": WHOOP_SYNC_LOCK_ID})
+    _dedupe_whoop_days(user_id)
 
     now = datetime.now(timezone.utc)
     start = (now - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
@@ -249,6 +288,26 @@ def sync(user_id: str, days: int = 30) -> dict:
             "raw": r,
         })
 
+    # Step count lives on the cycle (wake-up → next wake-up), available since 2026-09-23.
+    # The current cycle carries steps-so-far. Date = local date of the cycle start,
+    # which matches the sleep end date used above.
+    try:
+        cycle_records = _fetch_all_pages(access_token, "/cycle", {"start": start, "end": end})
+        for c in cycle_records:
+            steps = c.get("step_count")
+            if steps is None:
+                steps = (c.get("score") or {}).get("step_count")
+            if steps is None:
+                continue
+            try:
+                start_dt = datetime.fromisoformat(c["start"].replace("Z", "+00:00"))
+                d = _local_date(start_dt, c.get("timezone_offset", "+00:00"))
+            except (KeyError, ValueError):
+                continue
+            day_map.setdefault(d, {})["step_count"] = steps
+    except Exception as e:
+        current_app.logger.warning(f"Whoop cycle/step sync failed: {e}")
+
     # Upsert into whoop_data
     upserted = 0
     for d, values in day_map.items():
@@ -273,6 +332,7 @@ def sync(user_id: str, days: int = 30) -> dict:
                 sleep_consistency_pct=values.get("sleep_consistency_pct"),
                 sleep_efficiency_pct=values.get("sleep_efficiency_pct"),
                 sleep_disturbances=values.get("sleep_disturbances"),
+                step_count=values.get("step_count"),
                 raw_json=values.get("raw"),
             )
             db.session.add(existing)
@@ -302,11 +362,16 @@ def sync(user_id: str, days: int = 30) -> dict:
     workouts_deleted = 0
     try:
         workout_records = _fetch_all_pages(access_token, "/activity/workout", {"start": start, "end": end})
-        existing_whoop_ids = {
-            w.raw_json.get("id"): w
-            for w in Workout.query.filter_by(user_id=user_id, source="whoop").all()
-            if w.raw_json
-        }
+        existing_whoop_ids = {}
+        for w in Workout.query.filter_by(user_id=user_id, source="whoop").order_by(Workout.created_at).all():
+            if not w.raw_json:
+                continue
+            wo_id = w.raw_json.get("id")
+            if wo_id in existing_whoop_ids:
+                db.session.delete(w)  # duplicate from an earlier concurrent sync
+                workouts_deleted += 1
+            else:
+                existing_whoop_ids[wo_id] = w
 
         seen_ids = set()
         for wo in workout_records:
@@ -353,9 +418,12 @@ def sync(user_id: str, days: int = 30) -> dict:
                 ))
             workouts_synced += 1
 
-        # Delete Whoop workouts that no longer exist in Whoop (deleted by user)
+        # Delete Whoop workouts that no longer exist in Whoop (deleted by user).
+        # Only within the fetched window (1 day margin for timezones) — older
+        # workouts simply weren't fetched and must be kept.
+        window_start = (now - timedelta(days=days - 1)).date()
         for wo_id, w in existing_whoop_ids.items():
-            if wo_id not in seen_ids:
+            if wo_id not in seen_ids and w.date >= window_start:
                 db.session.delete(w)
                 workouts_deleted += 1
 

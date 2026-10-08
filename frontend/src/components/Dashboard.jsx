@@ -39,6 +39,8 @@ const PERIODS = [
   { label: "1Y", days: 365 },
 ];
 
+const STEP_GOAL = 10000;
+
 function Ring({ value, goal, label, color, size = 80, inverse = false, showPct = true, unit = "", unitBelow = false, onClick }) {
   const r = (size - 10) / 2;
   const circ = 2 * Math.PI * r;
@@ -83,20 +85,6 @@ function sleepColor(score) {
   if (score == null) return "#9ca3af";
   if (score >= 85) return "#22c55e";
   if (score >= 70) return "#60a5fa";
-  return "#ef4444";
-}
-
-function rhrColor(bpm) {
-  if (bpm == null) return "#9ca3af";
-  if (bpm < 60) return "#22c55e";
-  if (bpm <= 62) return "#60a5fa";
-  return "#ef4444";
-}
-
-function hrvColor(ms) {
-  if (ms == null) return "#9ca3af";
-  if (ms > 60) return "#22c55e";
-  if (ms >= 55) return "#60a5fa";
   return "#ef4444";
 }
 
@@ -366,13 +354,12 @@ export default function Dashboard({ onNavigate }) {
         />
       )}
 
-      {/* Whoop rings 2x2 */}
+      {/* Whoop: recovery, sleep, steps side by side */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <div className="grid grid-cols-2 gap-4">
-          <Ring value={whoop?.recovery_score} goal={100} label="Recovery" color={recoveryColor(whoop?.recovery_score)} showPct={false} unit="%" onClick={() => setHistoryTab("recovery")} />
-          <Ring value={whoop?.sleep_score} goal={100} label="Sleep" color={sleepColor(whoop?.sleep_score)} showPct={false} unit="%" onClick={() => setHistoryTab("sleep")} />
-          <Ring value={whoop?.hrv_ms ? Math.round(whoop.hrv_ms) : null} goal={100} label="HRV (ms)" color={hrvColor(whoop?.hrv_ms)} showPct={false} unit="ms" unitBelow={true} onClick={() => setHistoryTab("recovery")} />
-          <Ring value={whoop?.resting_hr} goal={80} label="Resting HR" color={rhrColor(whoop?.resting_hr)} inverse={true} showPct={false} unit="bpm" unitBelow={true} onClick={() => setHistoryTab("recovery")} />
+        <div className="grid grid-cols-3 gap-2">
+          <Ring size={84} value={whoop?.recovery_score} goal={100} label="Recovery" color={recoveryColor(whoop?.recovery_score)} showPct={false} unit="%" onClick={() => setHistoryTab("recovery")} />
+          <Ring size={84} value={whoop?.sleep_score} goal={100} label="Sleep" color={sleepColor(whoop?.sleep_score)} showPct={false} unit="%" onClick={() => setHistoryTab("sleep")} />
+          <Ring size={84} value={whoop?.step_count} goal={STEP_GOAL} label="Steps" color={(whoop?.step_count || 0) >= STEP_GOAL ? "#22c55e" : "#0ea5e9"} showPct={false} unit={`/ ${STEP_GOAL / 1000}k`} unitBelow={true} />
         </div>
       </div>
 

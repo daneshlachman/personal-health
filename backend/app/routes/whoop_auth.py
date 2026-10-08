@@ -108,6 +108,7 @@ def history():
         "sleep_consistency_pct": r.sleep_consistency_pct,
         "sleep_efficiency_pct": r.sleep_efficiency_pct,
         "sleep_disturbances": r.sleep_disturbances,
+        "step_count": r.step_count,
     } for r in records])
 
 

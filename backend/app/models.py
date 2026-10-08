@@ -90,6 +90,7 @@ class WhoopData(db.Model):
     sleep_consistency_pct = db.Column(db.Integer)
     sleep_efficiency_pct = db.Column(db.Integer)
     sleep_disturbances = db.Column(db.Integer)
+    step_count = db.Column(db.Integer)
     raw_json = db.Column(db.JSON)
     created_at = db.Column(db.DateTime(timezone=True), default=_now)
 
@@ -107,6 +108,7 @@ class WhoopData(db.Model):
             "sleep_consistency_pct": self.sleep_consistency_pct,
             "sleep_efficiency_pct": self.sleep_efficiency_pct,
             "sleep_disturbances": self.sleep_disturbances,
+            "step_count": self.step_count,
             "created_at": self.created_at.isoformat(),
         }
 
