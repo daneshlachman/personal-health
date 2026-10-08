@@ -32,6 +32,7 @@ import WhoopHistory from "./WhoopHistory";
 import WeightHistory from "./WeightHistory";
 import CaloriesHistory from "./CaloriesHistory";
 import Settings from "./Settings";
+import TrainingAdvice from "./TrainingAdvice";
 
 const PERIODS = [
   { label: "1W", days: 7 },
@@ -413,6 +414,9 @@ export default function Dashboard({ onNavigate }) {
           </button>
         </div>
       )}
+
+      {/* Training advice only applies to today */}
+      {date === todayISO && <TrainingAdvice />}
 
       {/* Weight chart */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
