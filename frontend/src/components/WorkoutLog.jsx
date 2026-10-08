@@ -464,17 +464,12 @@ export default function WorkoutLog() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Workouts</h1>
         <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            {[["week", "Week"], ["month", "Maand"]].map(([v, label]) => (
-              <button
-                key={v}
-                onClick={() => switchView(v)}
-                className={`text-xs px-3 py-1 rounded-md font-medium transition-colors ${calView === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => switchView(calView === "week" ? "month" : "week")}
+            className="text-xs bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium w-16"
+          >
+            {calView === "week" ? "Week" : "Maand"}
+          </button>
           <button
             onClick={syncAll} disabled={syncing}
             className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg font-medium disabled:opacity-50"

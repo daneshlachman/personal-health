@@ -31,6 +31,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 import WhoopHistory from "./WhoopHistory";
 import WeightHistory from "./WeightHistory";
 import CaloriesHistory from "./CaloriesHistory";
+import Settings from "./Settings";
 
 const PERIODS = [
   { label: "1W", days: 7 },
@@ -178,6 +179,7 @@ export default function Dashboard({ onNavigate }) {
   const [historyTab, setHistoryTab] = useState(null);
   const [showWeightHistory, setShowWeightHistory] = useState(false);
   const [showCaloriesHistory, setShowCaloriesHistory] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [addingWeight, setAddingWeight] = useState(false);
   const [weightInput, setWeightInput] = useState("");
   const [whoop, setWhoop] = useState(null);
@@ -304,6 +306,18 @@ export default function Dashboard({ onNavigate }) {
   if (historyTab) return <WhoopHistory onBack={() => setHistoryTab(null)} initialTab={historyTab} />;
   if (showWeightHistory) return <WeightHistory onBack={() => setShowWeightHistory(false)} />;
   if (showCaloriesHistory) return <CaloriesHistory onBack={() => setShowCaloriesHistory(false)} />;
+  if (showSettings) return (
+    <Settings
+      onBack={() => setShowSettings(false)}
+      whoopConnected={whoopConnected}
+      syncing={syncing}
+      onSync={triggerSync}
+      onDisconnect={async () => {
+        await fetch(`${API}/api/whoop/disconnect`, { method: "POST" });
+        setWhoopConnected(false);
+      }}
+    />
+  );
 
   const saveWeight = () => {
     const kg = parseFloat(weightInput.replace(",", "."));
@@ -329,22 +343,34 @@ export default function Dashboard({ onNavigate }) {
     <div className="p-4 space-y-4 max-w-lg mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={prevDay} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-2xl font-light">
-          ‹
-        </button>
+        <div className="flex items-center">
+          <div className="w-10 h-10" />
+          <button onClick={prevDay} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-2xl font-light">
+            ‹
+          </button>
+        </div>
         <button onClick={() => setCalendarOpen(true)} className="flex flex-col items-center">
           <h1 className="text-xl font-bold text-gray-900">{dateLabel(date)}</h1>
           {date !== todayISO && (
             <span className="text-xs text-gray-400">{new Date(date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</span>
           )}
         </button>
-        <button
-          onClick={nextDay}
-          disabled={date >= todayISO}
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-2xl font-light disabled:opacity-0"
-        >
-          ›
-        </button>
+        <div className="flex items-center">
+          <button
+            onClick={nextDay}
+            disabled={date >= todayISO}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-2xl font-light disabled:opacity-0"
+          >
+            ›
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            aria-label="Settings"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
       </div>
 
       {calendarOpen && (
@@ -533,33 +559,6 @@ export default function Dashboard({ onNavigate }) {
         })()}
       </div>
 
-      {/* Whoop sync controls */}
-      <div className="flex justify-end gap-2 pb-2">
-        {whoopConnected ? (
-          <>
-            <button
-              onClick={triggerSync}
-              disabled={syncing}
-              className="text-xs bg-brand-50 text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg font-medium disabled:opacity-50"
-            >
-              {syncing ? "Syncing…" : "Sync Whoop"}
-            </button>
-            <button
-              onClick={async () => {
-                await fetch(`${API}/api/whoop/disconnect`, { method: "POST" });
-                setWhoopConnected(false);
-              }}
-              className="text-xs text-gray-400 hover:text-red-500 px-2 py-1.5 rounded-lg"
-            >
-              Disconnect
-            </button>
-          </>
-        ) : (
-          <a href={`${API}/api/whoop/authorize`} className="text-xs bg-black text-white px-3 py-1.5 rounded-lg font-medium">
-            Connect Whoop
-          </a>
-        )}
-      </div>
     </div>
   );
 }
