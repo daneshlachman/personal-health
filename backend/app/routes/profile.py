@@ -1,19 +1,15 @@
 from flask import Blueprint, jsonify, request
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, timedelta
 
 from app import db
 from app.models import WeightLog, Workout, NutritionLog, UserProfile
 from app.routes.chat import _ensure_user
-from app.services.workout_utils import calc_workout_kcal
+from app.services.energy import day_energy, energy_for, steps_by_day, typical_steps, TYPICAL_STEPS_WINDOW_DAYS
 
 profile_bp = Blueprint("profile", __name__)
 
 USER_ID = "00000000-0000-0000-0000-000000000001"
 
-# Hardcoded user profile
-HEIGHT_CM = 192
-DATE_OF_BIRTH = date(1999, 10, 3)
-AVG_DAILY_STEPS = 10000
 DEFAULT_CALORIE_GOAL = 2400
 
 
@@ -56,52 +52,31 @@ def update_profile():
     return jsonify(profile.to_dict())
 
 
+def _latest_weight() -> float:
+    latest = WeightLog.query.filter_by(user_id=USER_ID).order_by(WeightLog.date.desc()).first()
+    return latest.weight_kg if latest else 88
 
 
 @profile_bp.route("/tdee/today", methods=["GET"])
 def tdee_today():
     date_str = request.args.get("date")
-    today = date.fromisoformat(date_str) if date_str else date.today()
+    day = date.fromisoformat(date_str) if date_str else date.today()
+    weight_kg = _latest_weight()
 
-    latest_weight = (
-        WeightLog.query.filter_by(user_id=USER_ID)
-        .order_by(WeightLog.date.desc()).first()
-    )
-    weight_kg = latest_weight.weight_kg if latest_weight else 88
+    energy = energy_for(USER_ID, day, weight_kg)
 
-    age = (today - DATE_OF_BIRTH).days / 365.25
-    bmr = 10 * weight_kg + 6.25 * HEIGHT_CM - 5 * age + 5
-    step_kcal = AVG_DAILY_STEPS * 0.04 * (weight_kg / 70)
-    tef = bmr * 0.10
-    passive_total = bmr + step_kcal + tef
-
-    # Workout calories today (deduplicated across sources)
-    todays_workouts = Workout.query.filter_by(user_id=USER_ID, date=today).all()
-    workout_kcal, _ = calc_workout_kcal(todays_workouts, weight_kg)
-
-    tdee = round(passive_total + workout_kcal)
-
-    # For past days show full TDEE; for today scale by time of day
-    is_today = today == date.today()
-    if is_today:
-        now = datetime.now(timezone.utc).astimezone()
-        minutes_elapsed = now.hour * 60 + now.minute
-        time_fraction = minutes_elapsed / (24 * 60)
-        burned_now = round(time_fraction * passive_total + workout_kcal)
-    else:
-        burned_now = tdee
-
-    # Today's consumed calories
-    nutrition = NutritionLog.query.filter_by(user_id=USER_ID, date=today).all()
+    nutrition = NutritionLog.query.filter_by(user_id=USER_ID, date=day).all()
     consumed = round(sum(n.calories or 0 for n in nutrition))
-    balance = consumed - burned_now  # positive = surplus, negative = deficit
+    balance = consumed - energy["burned_now"]  # positive = surplus, negative = deficit
 
     return jsonify({
-        "tdee": tdee,
-        "burned_now": burned_now,
-        "bmr": round(bmr),
-        "step_kcal": round(step_kcal),
-        "workout_kcal": round(workout_kcal),
+        "tdee": energy["tdee"],
+        "burned_now": energy["burned_now"],
+        "bmr": energy["bmr"],
+        "step_kcal": energy["step_kcal"],
+        "steps": energy["steps"],
+        "steps_source": energy["steps_source"],
+        "workout_kcal": energy["workout_kcal"],
         "consumed": consumed,
         "balance": balance,
         "weight_kg": weight_kg,
@@ -113,51 +88,35 @@ def calories_history():
     days = int(request.args.get("days", 30))
     today = date.today()
     start = today - timedelta(days=days)
+    weight_kg = _latest_weight()
 
-    latest_weight = (
-        WeightLog.query.filter_by(user_id=USER_ID)
-        .order_by(WeightLog.date.desc()).first()
-    )
-    weight_kg = latest_weight.weight_kg if latest_weight else 88
-    age = (today - DATE_OF_BIRTH).days / 365.25
-    bmr = 10 * weight_kg + 6.25 * HEIGHT_CM - 5 * age + 5
-    step_kcal = AVG_DAILY_STEPS * 0.04 * (weight_kg / 70)
-    tef = bmr * 0.10
-    passive_total = round(bmr + step_kcal + tef)
+    known_steps = steps_by_day(USER_ID, start - timedelta(days=TYPICAL_STEPS_WINDOW_DAYS), today)
 
-    # Workout calories per day
     workouts = Workout.query.filter(
-        Workout.user_id == USER_ID,
-        Workout.date >= start,
-        Workout.date <= today
+        Workout.user_id == USER_ID, Workout.date >= start, Workout.date <= today
     ).all()
-    # Group workouts by day, then dedup per day
-    workouts_by_day: dict[str, list] = {}
+    workouts_by_day: dict = {}
     for w in workouts:
-        d = w.date.isoformat()
-        workouts_by_day.setdefault(d, []).append(w)
-    workout_by_day = {d: calc_workout_kcal(ws, weight_kg)[0] for d, ws in workouts_by_day.items()}
+        workouts_by_day.setdefault(w.date, []).append(w)
 
-    # Consumed per day
     nutrition = NutritionLog.query.filter(
-        NutritionLog.user_id == USER_ID,
-        NutritionLog.date >= start,
-        NutritionLog.date <= today
+        NutritionLog.user_id == USER_ID, NutritionLog.date >= start, NutritionLog.date <= today
     ).all()
-    consumed_by_day = {}
+    consumed_by_day: dict = {}
     for n in nutrition:
-        d = n.date.isoformat()
-        consumed_by_day[d] = consumed_by_day.get(d, 0) + (n.calories or 0)
+        consumed_by_day[n.date] = consumed_by_day.get(n.date, 0) + (n.calories or 0)
 
     result = []
     current = start + timedelta(days=1)
     while current <= today:
-        d = current.isoformat()
-        workout_kcal = workout_by_day.get(d, 0)
-        burned = passive_total + workout_kcal
-        consumed = round(consumed_by_day.get(d, 0))
+        energy = day_energy(
+            current, weight_kg, known_steps.get(current),
+            typical_steps(USER_ID, current, known_steps), workouts_by_day.get(current, []),
+        )
+        burned = energy["tdee"]  # full-day value (for today: the estimate)
+        consumed = round(consumed_by_day.get(current, 0))
         result.append({
-            "date": d,
+            "date": current.isoformat(),
             "burned": burned,
             "consumed": consumed,
             "balance": consumed - burned if consumed > 0 else None,

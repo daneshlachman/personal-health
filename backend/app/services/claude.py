@@ -6,7 +6,7 @@ import anthropic
 
 from app import db
 from app.models import WhoopData, NutritionLog, WeightLog, Workout, ChatMessage
-from app.services.workout_utils import calc_workout_kcal, dedupe_workouts
+from app.services.workout_utils import dedupe_workouts
 
 MODEL = "claude-sonnet-4-6"
 MAX_HISTORY_FOOD = 0
@@ -65,32 +65,23 @@ def _needs_long_history(text: str) -> bool:
     return any(kw in lower for kw in LONG_HISTORY_KEYWORDS)
 
 
-HEIGHT_CM = 192
-DATE_OF_BIRTH = date(1999, 10, 3)
-AVG_DAILY_STEPS = 10000
-
-
 def calculate_tdee(user_id: str, today: date) -> str:
+    from app.services.energy import energy_for
     latest_weight = (
         WeightLog.query.filter_by(user_id=user_id)
         .order_by(WeightLog.date.desc()).first()
     )
     weight_kg = latest_weight.weight_kg if latest_weight else 88
 
-    age = (today - DATE_OF_BIRTH).days / 365.25
-    bmr = 10 * weight_kg + 6.25 * HEIGHT_CM - 5 * age + 5  # Mifflin-St Jeor male
-    step_kcal = AVG_DAILY_STEPS * 0.04 * (weight_kg / 70)
-    tef = bmr * 0.10
+    e = energy_for(user_id, today, weight_kg)
+    steps_label = f"{e['steps']} steps" if e["steps_source"] == "whoop" else f"~{e['steps']} steps (estimate)"
+    if e["workout_steps"]:
+        steps_label += f", minus {e['workout_steps']} workout steps"
+    breakdown = f"BMR {e['bmr']} + {steps_label} ({e['step_kcal']} kcal so far) + TEF {e['tef']}"
+    if e["workout_notes"]:
+        breakdown += " + " + " + ".join(e["workout_notes"])
 
-    todays_workouts = Workout.query.filter_by(user_id=user_id, date=today).all()
-    workout_kcal, workout_notes = calc_workout_kcal(todays_workouts, weight_kg)
-
-    tdee = round(bmr + step_kcal + tef + workout_kcal)
-    breakdown = f"BMR {round(bmr)} + ~{AVG_DAILY_STEPS} steps ({round(step_kcal)} kcal) + TEF {round(tef)}"
-    if workout_notes:
-        breakdown += " + " + " + ".join(workout_notes)
-
-    return f"~{tdee} kcal ({breakdown})"
+    return f"~{e['tdee']} kcal full-day estimate, ~{e['burned_now']} kcal burned so far ({breakdown})"
 
 
 def build_context(user_id: str, user_message: str = "", target_date: date = None) -> str:

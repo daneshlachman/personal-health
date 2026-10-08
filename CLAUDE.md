@@ -125,9 +125,15 @@ Componenten in `frontend/src/components/`: Dashboard, NutritionLog, WorkoutLog, 
 - `POST /api/sync/whoop?days=N` (default 30) om gaten op te vullen.
 - Stappen: `step_count` uit `/cycle` (Whoop API sinds 2026-09-23), per cycle (wakker → wakker), gemapt op lokale startdatum. Open issue: lopende dag geeft soms nog `null`.
 
+## Energie / TDEE
+Eén berekening in `backend/app/services/energy.py` (Dashboard, calorie-historie en chat-context):
+BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.04 kcal × gewicht/70 + workout kcal.
+- Stappen = Whoop `step_count` minus Garmin workout-stappen (die zitten al in workout kcal).
+- Vandaag: BMR+TEF geschaald op tijd van de dag, stappen tot nu toe tellen volledig; dag-schatting gebruikt max(stappen nu, 14-daags gemiddelde).
+- Geen Whoop stappen → 14-daags gemiddelde → profiel `avg_daily_steps` → 10.000.
+
 ## Open punten
 - Workout deduplicatie (Hevy > Garmin > Whoop) zit in frontend én `workout_utils.py` — hoort in `backend/app/routes/workouts.py`.
-- TDEE gebruikt nog vaste `AVG_DAILY_STEPS` — kan nu echte Whoop stappen gebruiken.
 - Dashboard heeft een hardcoded ReferenceLine op 28 Mar in de weight chart.
 
 ---
