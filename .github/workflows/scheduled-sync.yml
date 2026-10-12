@@ -1,0 +1,19 @@
+name: Scheduled sync
+
+# Hourly from 06:07 to 23:07 Amsterdam summer time (cron is UTC): sync Whoop, Hevy and
+# Garmin and prepare today's training advice as soon as today's recovery is in.
+# GitHub may start scheduled runs some minutes late; that's fine for an hourly sync.
+on:
+  schedule:
+    - cron: "7 4-21 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sync all sources
+        run: |
+          curl -sS --fail-with-body --max-time 240 -X POST \
+            "https://danesh-health-backend.agreeableground-243793ea.northeurope.azurecontainerapps.io/api/sync/scheduled"
