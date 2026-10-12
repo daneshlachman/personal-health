@@ -139,50 +139,75 @@ def get_training_recommendation():
     return jsonify(_recommendation_state(user.id, target))
 
 
-@workouts_bp.route("/workouts/recommendation", methods=["POST"])
-def training_recommendation():
-    """Generate advice for a day. Max 2 per day; with auto=true only when none exists yet."""
+def _generate_recommendation(user_id, target, auto: bool, sync: bool = True):
+    """Sync all sources, then generate advice under the daily cap. Returns (body, status).
+    With auto=True it only generates when there is no advice yet and today's recovery is in."""
     from sqlalchemy import text
     from app import db
     from app.models import TrainingRecommendation
     from app.services.coach import recommend_training, CoachError
+
+    if auto and _recommendation_state(user_id, target)["recommendation"]:
+        return _recommendation_state(user_id, target), 200
+
+    # Fresh data first: the advice is only as good as the last sync. Each sync commits,
+    # so this runs before taking the generation lock.
+    if sync:
+        _sync_sources(user_id)
+
+    # Serialize generation so two devices / the scheduler can't both spend a call
+    db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": RECOMMENDATION_LOCK_ID})
+    state = _recommendation_state(user_id, target)
+    if auto and state["recommendation"]:
+        db.session.commit()
+        return state, 200
+    if auto and not _has_recovery(user_id, target):
+        # Don't spend the daily budget on yesterday's data; the user can still generate manually
+        db.session.commit()
+        return {**state, "waiting": "Recovery van vandaag is nog niet binnen"}, 200
+    if state["remaining"] == 0:
+        db.session.commit()
+        return {**state, "error": f"Max {MAX_RECOMMENDATIONS_PER_DAY} adviezen per dag"}, 429
+
+    try:
+        result = recommend_training(user_id, target)
+    except CoachError as e:
+        db.session.rollback()
+        return {**state, "error": str(e)}, 502
+    db.session.add(TrainingRecommendation(
+        user_id=user_id, date=target, content=result["details"],
+        summary={k: result[k] for k in ("type", "duration_min", "intensity", "headline")},
+    ))
+    db.session.commit()
+    return _recommendation_state(user_id, target), 200
+
+
+@workouts_bp.route("/workouts/recommendation", methods=["POST"])
+def training_recommendation():
+    """Generate advice for a day. Max 2 per day; with auto=true only when none exists yet."""
     user = _ensure_user()
     body = request.get_json(silent=True) or {}
     try:
         target = _parse_date(body.get("date"))
     except ValueError:
         return jsonify({"error": "invalid date"}), 400
+    result, status = _generate_recommendation(user.id, target, auto=bool(body.get("auto")))
+    return jsonify(result), status
 
-    auto = bool(body.get("auto"))
-    if auto and _recommendation_state(user.id, target)["recommendation"]:
-        return jsonify(_recommendation_state(user.id, target))
 
-    # Fresh data first: the advice is only as good as the last sync. Each sync commits,
-    # so this runs before taking the generation lock.
-    _sync_sources(user.id)
-
-    # Serialize generation so two devices (or a double-fired effect) can't both spend a call
-    db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": RECOMMENDATION_LOCK_ID})
-    state = _recommendation_state(user.id, target)
-    if auto and state["recommendation"]:
-        db.session.commit()
-        return jsonify(state)
-    if auto and not _has_recovery(user.id, target):
-        # Don't spend the daily budget on yesterday's data; the user can still generate manually
-        db.session.commit()
-        return jsonify({**state, "waiting": "Recovery van vandaag is nog niet binnen"})
-    if state["remaining"] == 0:
-        db.session.commit()
-        return jsonify({**state, "error": f"Max {MAX_RECOMMENDATIONS_PER_DAY} adviezen per dag"}), 429
-
-    try:
-        result = recommend_training(user.id, target)
-    except CoachError as e:
-        db.session.rollback()
-        return jsonify({**state, "error": str(e)}), 502
-    db.session.add(TrainingRecommendation(
-        user_id=user.id, date=target, content=result["details"],
-        summary={k: result[k] for k in ("type", "duration_min", "intensity", "headline")},
-    ))
-    db.session.commit()
-    return jsonify(_recommendation_state(user.id, target))
+@workouts_bp.route("/sync/scheduled", methods=["POST"])
+def scheduled_sync():
+    """Called hourly by GitHub Actions: sync everything and prepare today's advice
+    as soon as today's recovery is in, so the app opens with fresh data."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    user = _ensure_user()
+    today = datetime.now(ZoneInfo("Europe/Amsterdam")).date()
+    _sync_sources(user.id)  # always, also when today's advice already exists
+    result, status = _generate_recommendation(user.id, today, auto=True, sync=False)
+    return jsonify({
+        "date": today.isoformat(),
+        "advice_ready": bool(result.get("recommendation")),
+        "waiting": result.get("waiting"),
+        "error": result.get("error"),
+    }), status
