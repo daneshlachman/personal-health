@@ -403,14 +403,18 @@ export default function Dashboard({ onNavigate }) {
           </button>
           <button onClick={() => setShowCaloriesHistory(true)} className="flex flex-col items-start gap-0.5 text-left border-l border-gray-100 pl-3">
             <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Balance</span>
-            <span className={`text-lg font-bold ${
-              tdee.balance > 150 ? "text-orange-500" :
-              tdee.balance < -150 ? "text-green-600" :
-              "text-gray-700"
-            }`}>
-              {Math.abs(tdee.balance).toLocaleString()}
-              <span className="text-xs font-medium ml-1">{tdee.balance < 0 ? "deficit" : tdee.balance > 0 ? "surplus" : ""}</span>
-            </span>
+            {tdee.consumed > 0 ? (
+              <span className={`text-lg font-bold ${
+                tdee.balance > 150 ? "text-orange-500" :
+                tdee.balance < -150 ? "text-green-600" :
+                "text-gray-700"
+              }`}>
+                {Math.abs(tdee.balance).toLocaleString()}
+                <span className="text-xs font-medium ml-1">{tdee.balance < 0 ? "deficit" : tdee.balance > 0 ? "surplus" : ""}</span>
+              </span>
+            ) : (
+              <span className="text-lg font-bold text-gray-300">—</span>
+            )}
           </button>
         </div>
       )}

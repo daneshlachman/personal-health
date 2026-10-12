@@ -94,7 +94,7 @@ function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, sel
               `}
             >
               <span className={`text-xs font-medium leading-none mb-0.5
-                ${isSelected ? "text-white" : isToday ? "text-brand-600" : "text-gray-700"}
+                ${isSelected ? "text-white" : isToday ? "text-brand-600" : isFuture ? "text-gray-300" : "text-gray-700"}
               `}>
                 {day.getDate()}
               </span>

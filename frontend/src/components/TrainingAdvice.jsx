@@ -28,7 +28,7 @@ function Tile({ label, children, className = "text-gray-900" }) {
   return (
     <div className="flex flex-col gap-1 min-w-0">
       <span className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</span>
-      <span className={`text-sm font-bold truncate ${className}`}>{children}</span>
+      <span className={`text-sm font-bold leading-tight break-words ${className}`}>{children}</span>
     </div>
   );
 }
@@ -38,24 +38,21 @@ export default function TrainingAdvice() {
   const [advice, setAdvice] = useState(null);
   const [summary, setSummary] = useState(null);
   const [expanded, setExpanded] = useState(false);
-  const [remaining, setRemaining] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [waiting, setWaiting] = useState(null);
 
-  const generate = async (auto) => {
+  // Only on an explicit tap: syncs Whoop/Hevy/Garmin and asks Claude (never automatic)
+  const generate = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API}/api/workouts/recommendation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: today, auto }),
+        body: JSON.stringify({ date: today }),
       });
       const data = await res.json();
       if (data.recommendation) { setAdvice(data.recommendation); setSummary(data.summary); }
-      if (data.remaining != null) setRemaining(data.remaining);
-      setWaiting(data.waiting || null);
       if (!res.ok) setError(data.error || "Er ging iets mis");
     } catch {
       setError("Kon de server niet bereiken");
@@ -64,22 +61,14 @@ export default function TrainingAdvice() {
     }
   };
 
-  // Show today's advice; generate one automatically if there is none yet
-  // (the backend caps it at 2 per day and ignores auto when one exists)
+  // Show today's advice if there is one; generating is up to the user
   useEffect(() => {
     fetch(`${API}/api/workouts/recommendation?date=${today}`)
       .then((r) => r.json())
       .then((data) => {
-        setRemaining(data.remaining);
-        if (data.recommendation) {
-          setAdvice(data.recommendation);
-          setSummary(data.summary);
-          setLoading(false);
-        } else {
-          generate(true);
-        }
+        if (data.recommendation) { setAdvice(data.recommendation); setSummary(data.summary); }
       })
-      .catch(() => { setError("Kon de server niet bereiken"); setLoading(false); });
+      .catch(() => setError("Kon de server niet bereiken"));
   }, [today]);
 
   const intensity = summary && (INTENSITY[summary.intensity] || INTENSITY.gemiddeld);
@@ -88,22 +77,20 @@ export default function TrainingAdvice() {
     <div className="bg-white rounded-2xl p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-gray-900">Training advies</p>
-        {!loading && remaining > 0 && (advice || waiting || error) && (
-          <button
-            onClick={() => generate(false)}
-            className="text-xs text-brand-600 px-2 py-1 rounded-lg font-medium shrink-0"
-          >
-            {advice ? `Opnieuw (${remaining})` : "Genereer"}
-          </button>
-        )}
-        {loading && advice && <span className="text-xs text-gray-400 px-2 py-1">Denken…</span>}
+        <button
+          onClick={generate}
+          disabled={loading}
+          className="text-xs text-brand-600 px-2 py-1 rounded-lg font-medium shrink-0 disabled:text-gray-400"
+        >
+          {loading ? "Denken…" : advice ? "Opnieuw" : "Genereer"}
+        </button>
       </div>
 
       {loading && !advice && (
         <p className="text-sm text-gray-400 mt-3">Data syncen en Claude laten kijken, ongeveer een halve minuut…</p>
       )}
-      {!loading && !advice && waiting && (
-        <p className="text-sm text-gray-400 mt-3">{waiting}. Het advies wordt gemaakt zodra je de app daarna opent, of druk nu op Genereer.</p>
+      {!loading && !advice && !error && (
+        <p className="text-sm text-gray-400 mt-3">Nog geen advies voor vandaag. Druk op Genereer.</p>
       )}
       {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
 
