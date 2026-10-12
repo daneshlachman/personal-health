@@ -4,7 +4,8 @@ from flask import Blueprint, request, jsonify, current_app
 food_bp = Blueprint("food", __name__)
 
 USDA_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
-OFF_URL = "https://world.openfoodfacts.org/cgi/search.pl"
+# The legacy cgi/search.pl endpoint returns 503s; search-a-licious is the current search API
+OFF_URL = "https://search.openfoodfacts.org/search"
 
 NUTRIENT_IDS = {
     "calories": 1008,
@@ -31,7 +32,7 @@ def _search_usda(query, api_key):
                 "pageSize": 15,
                 "dataType": "Branded,Foundation,SR Legacy",
             },
-            timeout=8,
+            timeout=4,  # DEMO_KEY is slow/rate-limited; don't let it hold up the search
         )
         resp.raise_for_status()
         foods = resp.json().get("foods", [])
@@ -56,21 +57,27 @@ def _search_usda(query, api_key):
     return results
 
 
+def _first_brand(brands) -> str:
+    # search-a-licious returns a list; the legacy API returned a comma-separated string
+    if isinstance(brands, list):
+        return brands[0] if brands else ""
+    return (brands or "").split(",")[0].strip()
+
+
 def _search_off(query):
     try:
         resp = requests.get(
             OFF_URL,
             params={
-                "search_terms": query,
-                "json": 1,
-                "page_size": 10,
-                "sort_by": "unique_scans_n",
+                "q": query,
+                "page_size": 15,
+                "langs": "nl,en",
                 "fields": "product_name,brands,nutriments",
             },
-            timeout=8,
+            timeout=5,
         )
         resp.raise_for_status()
-        products = resp.json().get("products", [])
+        products = resp.json().get("hits", [])
     except Exception as e:
         current_app.logger.error(f"OFF error: {e}")
         return []
@@ -83,7 +90,7 @@ def _search_off(query):
             continue
         results.append({
             "name": p["product_name"],
-            "brand": (p.get("brands") or "").split(",")[0].strip(),
+            "brand": _first_brand(p.get("brands")),
             "calories_100g": round(kcal, 1),
             "protein_100g": round(n.get("proteins_100g") or 0, 2),
             "carbs_100g": round(n.get("carbohydrates_100g") or 0, 2),
@@ -114,11 +121,12 @@ def food_search():
         off_future = pool.submit(in_app, _search_off, query)
         usda, off = usda_future.result(), off_future.result()
 
-    seen = {r["name"].lower() for r in usda}
-    if len(usda) < 5:
-        for r in off:
-            if r["name"].lower() not in seen:
-                usda.append(r)
-                seen.add(r["name"].lower())
+    # OpenFoodFacts first (Dutch products, fast); USDA fills up generic foods
+    results, seen = [], set()
+    for r in off + usda:
+        key = (r["name"].lower(), (r["brand"] or "").lower())
+        if key not in seen:
+            seen.add(key)
+            results.append(r)
 
-    return jsonify(usda)
+    return jsonify(results[:20])
