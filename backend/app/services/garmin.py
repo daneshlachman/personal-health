@@ -4,12 +4,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import current_app
+from sqlalchemy import text
 from garminconnect import Garmin
 
 from app import db
 from app.models import Workout
 
 TOKEN_PATH = Path(__file__).parent.parent.parent / ".garmin_token.json"
+GARMIN_SYNC_LOCK_ID = 7_301_004
 
 SKIP_ACTIVITY_TYPES = {
     "walking", "casual_walking", "speed_walking",
@@ -69,11 +71,17 @@ def sync(user_id: str, days: int = 30) -> dict:
         TOKEN_PATH.unlink(missing_ok=True)
         return {"status": "error", "message": f"Garmin API error: {e}"}
 
-    existing_ids = {
-        w.raw_json.get("activityId"): w
-        for w in Workout.query.filter_by(user_id=user_id, source="garmin").all()
-        if w.raw_json
-    }
+    # Serialize syncs (Workouts screen + pre-advice sync can overlap); released at commit
+    db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": GARMIN_SYNC_LOCK_ID})
+
+    existing_ids = {}
+    for w in Workout.query.filter_by(user_id=user_id, source="garmin").order_by(Workout.created_at).all():
+        if not w.raw_json:
+            continue
+        if w.raw_json.get("activityId") in existing_ids:
+            db.session.delete(w)  # duplicate from an earlier concurrent sync
+        else:
+            existing_ids[w.raw_json.get("activityId")] = w
 
     upserted = 0
     for act in activities:
