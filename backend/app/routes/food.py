@@ -116,10 +116,14 @@ def food_search():
         with app.app_context():
             return fn(*args)
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        usda_future = pool.submit(in_app, _search_usda, query, api_key)
-        off_future = pool.submit(in_app, _search_off, query)
-        usda, off = usda_future.result(), off_future.result()
+    pool = ThreadPoolExecutor(max_workers=2)
+    usda_future = pool.submit(in_app, _search_usda, query, api_key)
+    off_future = pool.submit(in_app, _search_off, query)
+    off = off_future.result()
+    # OpenFoodFacts answers in well under a second; only wait for the slow USDA
+    # DEMO_KEY when it didn't find enough on its own
+    usda = usda_future.result() if len(off) < 5 else []
+    pool.shutdown(wait=False)
 
     # OpenFoodFacts first (Dutch products, fast); USDA fills up generic foods
     results, seen = [], set()
