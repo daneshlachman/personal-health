@@ -80,15 +80,17 @@ function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, sel
           const isToday = day.getTime() === today.getTime();
           const workouts = workoutsByDate[iso] || [];
           const isSelected = selectedDate === iso;
+          const isFuture = day > today;
 
           return (
             <button
               key={i}
-              onClick={() => workouts.length > 0 && onDayClick(iso)}
-              className={`flex flex-col items-center py-1 rounded-xl transition-colors
+              onClick={() => !isFuture && onDayClick(iso)}
+              disabled={isFuture}
+              className={`flex flex-col items-center py-1.5 rounded-xl
                 ${!isCurrentMonth ? "opacity-25" : ""}
-                ${isSelected ? "bg-brand-500" : isToday ? "bg-brand-50" : ""}
-                ${workouts.length > 0 ? "cursor-pointer hover:bg-gray-100" : "cursor-default"}
+                ${isSelected ? "bg-brand-500" : isToday ? "bg-brand-50" : isFuture ? "" : "hover:bg-gray-100"}
+                ${isFuture ? "cursor-default" : "cursor-pointer"}
               `}
             >
               <span className={`text-xs font-medium leading-none mb-0.5
@@ -96,7 +98,7 @@ function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, sel
               `}>
                 {day.getDate()}
               </span>
-              <span className="text-sm leading-none flex gap-0.5">
+              <span className="text-sm leading-none flex gap-0.5 h-4">
                 {[...new Set(workouts.map(workoutEmoji))].map((e, i) => <span key={i}>{e}</span>)}
               </span>
             </button>
@@ -382,7 +384,13 @@ export default function WorkoutLog() {
     );
   };
 
-  useEffect(() => { fetchWorkouts(); }, []);
+  useEffect(() => {
+    fetchWorkouts();
+    // Hevy/Garmin only arrive via sync: refresh automatically, at most every 30 min per device
+    let last = 0;
+    try { last = parseInt(localStorage.getItem("lastWorkoutSync") || "0", 10); } catch { /* storage unavailable */ }
+    if (Date.now() - last > 30 * 60 * 1000) syncAll();
+  }, []);
 
   const syncAll = async () => {
     setSyncing(true);
@@ -391,6 +399,7 @@ export default function WorkoutLog() {
         fetch(`${API}/api/sync/hevy`, { method: "POST" }),
         fetch(`${API}/api/sync/garmin`, { method: "POST" }),
       ]);
+      try { localStorage.setItem("lastWorkoutSync", Date.now().toString()); } catch { /* storage unavailable */ }
       fetchWorkouts();
     } finally {
       setSyncing(false);
@@ -492,7 +501,7 @@ export default function WorkoutLog() {
           year={viewYear} month={viewMonth}
           weekStart={calView === "week" ? weekStart : null}
           workoutsByDate={workoutsByDate}
-          onDayClick={(d) => setSelectedDate(d === selectedDate ? null : d)}
+          onDayClick={setSelectedDate}
           selectedDate={selectedDate}
         />
         {selectedDate && (
@@ -507,7 +516,7 @@ export default function WorkoutLog() {
         <p className="text-center text-gray-400 py-4">Loading…</p>
       ) : displayedWorkouts.length === 0 ? (
         <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
-          <p className="text-gray-400 text-sm">Geen workouts op deze dag.</p>
+          <p className="text-gray-400 text-sm">{selectedDate ? "Geen workouts op deze dag." : "Tik op een dag om de workouts te zien."}</p>
         </div>
       ) : (
         <div className="space-y-2">

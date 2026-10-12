@@ -191,7 +191,7 @@ export default function Dashboard({ onNavigate }) {
   const [weightDays, setWeightDays] = useState(7);
   const [tdee, setTdee] = useState(null);
 
-  const AUTO_SYNC_INTERVAL_MS = 4 * 60 * 60 * 1000;
+  const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
   const prevDay = () => {
     const d = new Date(date + "T12:00:00");

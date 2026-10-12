@@ -41,6 +41,7 @@ export default function TrainingAdvice() {
   const [remaining, setRemaining] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [waiting, setWaiting] = useState(null);
 
   const generate = async (auto) => {
     setLoading(true);
@@ -54,6 +55,7 @@ export default function TrainingAdvice() {
       const data = await res.json();
       if (data.recommendation) { setAdvice(data.recommendation); setSummary(data.summary); }
       if (data.remaining != null) setRemaining(data.remaining);
+      setWaiting(data.waiting || null);
       if (!res.ok) setError(data.error || "Er ging iets mis");
     } catch {
       setError("Kon de server niet bereiken");
@@ -86,19 +88,22 @@ export default function TrainingAdvice() {
     <div className="bg-white rounded-2xl p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-gray-900">Training advies</p>
-        {advice && remaining > 0 && (
+        {!loading && remaining > 0 && (advice || waiting || error) && (
           <button
             onClick={() => generate(false)}
-            disabled={loading}
-            className="text-xs text-brand-600 px-2 py-1 rounded-lg font-medium disabled:opacity-50 shrink-0"
+            className="text-xs text-brand-600 px-2 py-1 rounded-lg font-medium shrink-0"
           >
-            {loading ? "Denken…" : `Opnieuw (${remaining})`}
+            {advice ? `Opnieuw (${remaining})` : "Genereer"}
           </button>
         )}
+        {loading && advice && <span className="text-xs text-gray-400 px-2 py-1">Denken…</span>}
       </div>
 
       {loading && !advice && (
-        <p className="text-sm text-gray-400 mt-3">Claude bekijkt je goals, recovery en workouts…</p>
+        <p className="text-sm text-gray-400 mt-3">Data syncen en Claude laten kijken, ongeveer een halve minuut…</p>
+      )}
+      {!loading && !advice && waiting && (
+        <p className="text-sm text-gray-400 mt-3">{waiting}. Het advies wordt gemaakt zodra je de app daarna opent, of druk nu op Genereer.</p>
       )}
       {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
 
