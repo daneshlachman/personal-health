@@ -2,7 +2,8 @@
 
 Shared by the dashboard (/tdee/today), the calorie history and the chat context.
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from app.models import WhoopData, Workout, UserProfile
 from app.services.workout_utils import calc_workout_kcal
@@ -11,6 +12,7 @@ from app.services.workout_utils import calc_workout_kcal
 HEIGHT_CM = 192
 DATE_OF_BIRTH = date(1999, 10, 3)
 DEFAULT_DAILY_STEPS = 10000
+LOCAL_TZ = ZoneInfo("Europe/Amsterdam")
 KCAL_PER_STEP_AT_70KG = 0.04
 TYPICAL_STEPS_WINDOW_DAYS = 14
 
@@ -63,7 +65,8 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
     steps_day = steps if measured else typical
     non_workout_steps = max(0, steps_day - w_steps)
 
-    now = now or datetime.now(timezone.utc).astimezone()
+    # The container runs in UTC; "how much of the day has passed" is a local-time question
+    now = now or datetime.now(LOCAL_TZ)
     is_today = day == now.date()
     if is_today:
         fraction = (now.hour * 60 + now.minute) / (24 * 60)
@@ -93,6 +96,10 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
         "workout_kcal": round(w_kcal),
         "workout_notes": w_notes,
     }
+
+
+def local_today() -> date:
+    return datetime.now(LOCAL_TZ).date()
 
 
 def energy_for(user_id: str, day: date, weight_kg: float) -> dict:

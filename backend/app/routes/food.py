@@ -100,11 +100,23 @@ def food_search():
 
     api_key = current_app.config.get("USDA_API_KEY", "DEMO_KEY")
 
-    usda = _search_usda(query, api_key)
-    seen = {r["name"].lower() for r in usda}
+    # Both sources in parallel (USDA with the DEMO_KEY alone takes ~6 s). Threads need
+    # the app context because the search helpers log via current_app.
+    from concurrent.futures import ThreadPoolExecutor
+    app = current_app._get_current_object()
 
+    def in_app(fn, *args):
+        with app.app_context():
+            return fn(*args)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        usda_future = pool.submit(in_app, _search_usda, query, api_key)
+        off_future = pool.submit(in_app, _search_off, query)
+        usda, off = usda_future.result(), off_future.result()
+
+    seen = {r["name"].lower() for r in usda}
     if len(usda) < 5:
-        for r in _search_off(query):
+        for r in off:
             if r["name"].lower() not in seen:
                 usda.append(r)
                 seen.add(r["name"].lower())

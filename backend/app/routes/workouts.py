@@ -85,7 +85,7 @@ def get_workouts():
     return jsonify([_workout_with_exercises(w) for w in workouts])
 
 
-MAX_RECOMMENDATIONS_PER_DAY = 2
+MAX_RECOMMENDATIONS_PER_DAY = 5
 RECOMMENDATION_LOCK_ID = 7_301_002
 
 
@@ -123,12 +123,6 @@ def _sync_sources(user_id):
             current_app.logger.warning(f"Pre-advice {name} sync failed: {e}")
 
 
-def _has_recovery(user_id, target):
-    from app.models import WhoopData
-    row = WhoopData.query.filter_by(user_id=user_id, date=target).first()
-    return bool(row and row.recovery_score is not None)
-
-
 @workouts_bp.route("/workouts/recommendation", methods=["GET"])
 def get_training_recommendation():
     user = _ensure_user()
@@ -139,32 +133,21 @@ def get_training_recommendation():
     return jsonify(_recommendation_state(user.id, target))
 
 
-def _generate_recommendation(user_id, target, auto: bool, sync: bool = True):
+def _generate_recommendation(user_id, target):
     """Sync all sources, then generate advice under the daily cap. Returns (body, status).
-    With auto=True it only generates when there is no advice yet and today's recovery is in."""
+    Only ever called on an explicit user action — never automatically."""
     from sqlalchemy import text
     from app import db
     from app.models import TrainingRecommendation
     from app.services.coach import recommend_training, CoachError
 
-    if auto and _recommendation_state(user_id, target)["recommendation"]:
-        return _recommendation_state(user_id, target), 200
-
     # Fresh data first: the advice is only as good as the last sync. Each sync commits,
     # so this runs before taking the generation lock.
-    if sync:
-        _sync_sources(user_id)
+    _sync_sources(user_id)
 
-    # Serialize generation so two devices / the scheduler can't both spend a call
+    # Serialize generation so a double tap or two devices can't both spend a call
     db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": RECOMMENDATION_LOCK_ID})
     state = _recommendation_state(user_id, target)
-    if auto and state["recommendation"]:
-        db.session.commit()
-        return state, 200
-    if auto and not _has_recovery(user_id, target):
-        # Don't spend the daily budget on yesterday's data; the user can still generate manually
-        db.session.commit()
-        return {**state, "waiting": "Recovery van vandaag is nog niet binnen"}, 200
     if state["remaining"] == 0:
         db.session.commit()
         return {**state, "error": f"Max {MAX_RECOMMENDATIONS_PER_DAY} adviezen per dag"}, 429
@@ -184,30 +167,21 @@ def _generate_recommendation(user_id, target, auto: bool, sync: bool = True):
 
 @workouts_bp.route("/workouts/recommendation", methods=["POST"])
 def training_recommendation():
-    """Generate advice for a day. Max 2 per day; with auto=true only when none exists yet."""
+    """Generate advice for a day (explicit user action). Capped per day as a safety net."""
     user = _ensure_user()
     body = request.get_json(silent=True) or {}
     try:
         target = _parse_date(body.get("date"))
     except ValueError:
         return jsonify({"error": "invalid date"}), 400
-    result, status = _generate_recommendation(user.id, target, auto=bool(body.get("auto")))
+    result, status = _generate_recommendation(user.id, target)
     return jsonify(result), status
 
 
 @workouts_bp.route("/sync/scheduled", methods=["POST"])
 def scheduled_sync():
-    """Called hourly by GitHub Actions: sync everything and prepare today's advice
-    as soon as today's recovery is in, so the app opens with fresh data."""
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
+    """Called hourly by GitHub Actions: sync Whoop, Hevy and Garmin so the app opens with
+    fresh data. Deliberately no Claude call here — advice is generated on request only."""
     user = _ensure_user()
-    today = datetime.now(ZoneInfo("Europe/Amsterdam")).date()
-    _sync_sources(user.id)  # always, also when today's advice already exists
-    result, status = _generate_recommendation(user.id, today, auto=True, sync=False)
-    return jsonify({
-        "date": today.isoformat(),
-        "advice_ready": bool(result.get("recommendation")),
-        "waiting": result.get("waiting"),
-        "error": result.get("error"),
-    }), status
+    _sync_sources(user.id)
+    return jsonify({"status": "ok"})

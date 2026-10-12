@@ -263,6 +263,7 @@ def sync(user_id: str, days: int = 30) -> dict:
             "sleep_consistency_pct": score.get("sleep_consistency_percentage"),
             "sleep_efficiency_pct": score.get("sleep_efficiency_percentage"),
             "sleep_disturbances": score.get("disturbance_count"),
+            "respiratory_rate": score.get("respiratory_rate"),
         })
 
     # Merge recovery into the same date — use the associated sleep date when available
@@ -284,7 +285,6 @@ def sync(user_id: str, days: int = 30) -> dict:
             "recovery_score": score.get("recovery_score"),
             "hrv_ms": score.get("hrv_rmssd_milli"),
             "resting_hr": score.get("resting_heart_rate"),
-            "respiratory_rate": score.get("respiratory_rate"),
             "raw": r,
         })
 

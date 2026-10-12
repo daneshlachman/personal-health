@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from app import db
 from app.models import WeightLog, Workout, NutritionLog, UserProfile
 from app.routes.chat import _ensure_user
-from app.services.energy import day_energy, energy_for, steps_by_day, typical_steps, TYPICAL_STEPS_WINDOW_DAYS
+from app.services.energy import day_energy, energy_for, local_today, steps_by_day, typical_steps, TYPICAL_STEPS_WINDOW_DAYS
 
 profile_bp = Blueprint("profile", __name__)
 
@@ -60,7 +60,10 @@ def _latest_weight() -> float:
 @profile_bp.route("/tdee/today", methods=["GET"])
 def tdee_today():
     date_str = request.args.get("date")
-    day = date.fromisoformat(date_str) if date_str else date.today()
+    try:
+        day = date.fromisoformat(date_str) if date_str else local_today()
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
     weight_kg = _latest_weight()
 
     energy = energy_for(USER_ID, day, weight_kg)
@@ -86,7 +89,7 @@ def tdee_today():
 @profile_bp.route("/calories/history", methods=["GET"])
 def calories_history():
     days = int(request.args.get("days", 30))
-    today = date.today()
+    today = local_today()
     start = today - timedelta(days=days)
     weight_kg = _latest_weight()
 
