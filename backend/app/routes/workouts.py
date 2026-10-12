@@ -109,6 +109,26 @@ def _recommendation_state(user_id, target):
     }
 
 
+def _sync_sources(user_id):
+    """Best-effort sync of Whoop, Hevy and Garmin; a failing source must not block the advice."""
+    from app.services import whoop, hevy, garmin
+    for name, run in (("whoop", lambda: whoop.sync(user_id, days=3)),
+                      ("hevy", lambda: hevy.sync(user_id, pages=1)),
+                      ("garmin", lambda: garmin.sync(user_id, days=8))):
+        try:
+            run()
+        except Exception as e:  # noqa: BLE001 - one source failing shouldn't stop the others
+            from app import db
+            db.session.rollback()
+            current_app.logger.warning(f"Pre-advice {name} sync failed: {e}")
+
+
+def _has_recovery(user_id, target):
+    from app.models import WhoopData
+    row = WhoopData.query.filter_by(user_id=user_id, date=target).first()
+    return bool(row and row.recovery_score is not None)
+
+
 @workouts_bp.route("/workouts/recommendation", methods=["GET"])
 def get_training_recommendation():
     user = _ensure_user()
@@ -133,12 +153,24 @@ def training_recommendation():
     except ValueError:
         return jsonify({"error": "invalid date"}), 400
 
+    auto = bool(body.get("auto"))
+    if auto and _recommendation_state(user.id, target)["recommendation"]:
+        return jsonify(_recommendation_state(user.id, target))
+
+    # Fresh data first: the advice is only as good as the last sync. Each sync commits,
+    # so this runs before taking the generation lock.
+    _sync_sources(user.id)
+
     # Serialize generation so two devices (or a double-fired effect) can't both spend a call
     db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": RECOMMENDATION_LOCK_ID})
     state = _recommendation_state(user.id, target)
-    if body.get("auto") and state["recommendation"]:
+    if auto and state["recommendation"]:
         db.session.commit()
         return jsonify(state)
+    if auto and not _has_recovery(user.id, target):
+        # Don't spend the daily budget on yesterday's data; the user can still generate manually
+        db.session.commit()
+        return jsonify({**state, "waiting": "Recovery van vandaag is nog niet binnen"})
     if state["remaining"] == 0:
         db.session.commit()
         return jsonify({**state, "error": f"Max {MAX_RECOMMENDATIONS_PER_DAY} adviezen per dag"}), 429

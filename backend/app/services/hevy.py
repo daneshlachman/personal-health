@@ -1,13 +1,17 @@
 """Hevy REST API integration."""
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from flask import current_app
+from sqlalchemy import text
 
 from app import db
 from app.models import Workout
 
 HEVY_API_BASE = "https://api.hevyapp.com/v1"
+HEVY_SYNC_LOCK_ID = 7_301_003
+LOCAL_TZ = ZoneInfo("Europe/Amsterdam")
 
 
 def _headers():
@@ -28,12 +32,19 @@ def sync(user_id: str, pages: int = 3) -> dict:
     if not current_app.config.get("HEVY_API_KEY"):
         return {"status": "error", "message": "HEVY_API_KEY not configured"}
 
-    # Pre-load existing Hevy workouts keyed by raw_json["id"]
-    existing_map = {
-        w.raw_json.get("id"): w
-        for w in Workout.query.filter_by(user_id=user_id, source="hevy").all()
-        if w.raw_json
-    }
+    # Serialize syncs (auto-sync from several places could otherwise insert duplicates);
+    # released at the commit below
+    db.session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": HEVY_SYNC_LOCK_ID})
+
+    # Pre-load existing Hevy workouts keyed by raw_json["id"], dropping duplicates
+    existing_map = {}
+    for w in Workout.query.filter_by(user_id=user_id, source="hevy").order_by(Workout.created_at).all():
+        if not w.raw_json:
+            continue
+        if w.raw_json.get("id") in existing_map:
+            db.session.delete(w)
+        else:
+            existing_map[w.raw_json.get("id")] = w
 
     upserted = 0
     try:
@@ -53,7 +64,8 @@ def sync(user_id: str, pages: int = 3) -> dict:
 
                 try:
                     start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
-                    workout_date = start_dt.date()
+                    # Local date: an evening workout after 22:00 must not land on the next UTC day
+                    workout_date = start_dt.astimezone(LOCAL_TZ).date()
                 except (ValueError, AttributeError):
                     continue
 
@@ -84,7 +96,8 @@ def sync(user_id: str, pages: int = 3) -> dict:
 
         db.session.commit()
     except requests.HTTPError as e:
-        body = e.response.text if e.response else ""
+        db.session.rollback()
+        body = e.response.text if e.response is not None else ""
         current_app.logger.error(f"Hevy API error: {e} — {body}")
         return {"status": "error", "message": str(e), "detail": body}
 
