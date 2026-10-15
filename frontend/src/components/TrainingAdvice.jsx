@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { API } from "../utils/api";
+import { getCached, setCache } from "../utils/cache";
 
 const toLocalISO = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -35,11 +36,23 @@ function Tile({ label, children, className = "text-gray-900" }) {
 
 export default function TrainingAdvice() {
   const today = toLocalISO(new Date());
-  const [advice, setAdvice] = useState(null);
-  const [summary, setSummary] = useState(null);
+  const cacheKey = `training-advice-${today}`;
+  // Cached advice shows instantly; the backend may be asleep for ~20 s on open
+  const cached = getCached(cacheKey);
+  const [advice, setAdvice] = useState(cached?.recommendation || null);
+  const [summary, setSummary] = useState(cached?.summary || null);
+  const [checked, setChecked] = useState(Boolean(cached?.recommendation)); // backend answered (or cache hit)
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const apply = (data) => {
+    if (data?.recommendation) {
+      setAdvice(data.recommendation);
+      setSummary(data.summary);
+      setCache(cacheKey, { recommendation: data.recommendation, summary: data.summary });
+    }
+  };
 
   // Only on an explicit tap: syncs Whoop/Hevy/Garmin and asks Claude (never automatic)
   const generate = async () => {
@@ -52,7 +65,7 @@ export default function TrainingAdvice() {
         body: JSON.stringify({ date: today }),
       });
       const data = await res.json();
-      if (data.recommendation) { setAdvice(data.recommendation); setSummary(data.summary); }
+      apply(data);
       if (!res.ok) setError(data.error || "Er ging iets mis");
     } catch {
       setError("Kon de server niet bereiken");
@@ -65,10 +78,9 @@ export default function TrainingAdvice() {
   useEffect(() => {
     fetch(`${API}/api/workouts/recommendation?date=${today}`)
       .then((r) => r.json())
-      .then((data) => {
-        if (data.recommendation) { setAdvice(data.recommendation); setSummary(data.summary); }
-      })
-      .catch(() => setError("Kon de server niet bereiken"));
+      .then(apply)
+      .catch(() => setError("Kon de server niet bereiken"))
+      .finally(() => setChecked(true));
   }, [today]);
 
   const intensity = summary && (INTENSITY[summary.intensity] || INTENSITY.gemiddeld);
@@ -79,17 +91,20 @@ export default function TrainingAdvice() {
         <p className="text-sm font-semibold text-gray-900">Training advies</p>
         <button
           onClick={generate}
-          disabled={loading}
+          disabled={loading || !checked}
           className="text-xs text-brand-600 px-2 py-1 rounded-lg font-medium shrink-0 disabled:text-gray-400"
         >
-          {loading ? "Denken…" : advice ? "Opnieuw" : "Genereer"}
+          {loading ? "Denken…" : !checked ? "Laden…" : advice ? "Opnieuw" : "Genereer"}
         </button>
       </div>
 
       {loading && !advice && (
         <p className="text-sm text-gray-400 mt-3">Data syncen en Claude laten kijken, ongeveer een halve minuut…</p>
       )}
-      {!loading && !advice && !error && (
+      {!checked && !advice && !error && (
+        <p className="text-sm text-gray-400 mt-3">Advies van vandaag ophalen…</p>
+      )}
+      {checked && !loading && !advice && !error && (
         <p className="text-sm text-gray-400 mt-3">Nog geen advies voor vandaag. Druk op Genereer.</p>
       )}
       {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
