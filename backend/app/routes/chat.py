@@ -3,6 +3,7 @@ from datetime import date as date_type
 from app import db
 from app.models import ChatMessage, User
 from app.services.claude import build_context, call_claude, extract_nutrition
+from app.services.energy import local_today
 
 chat_bp = Blueprint("chat", __name__)
 
@@ -29,7 +30,7 @@ def chat():
 
     user = _ensure_user()
     date_str = body.get("date")
-    target_date = date_type.fromisoformat(date_str) if date_str else date_type.today()
+    target_date = date_type.fromisoformat(date_str) if date_str else local_today()
 
     # Persist user message
     user_msg = ChatMessage(user_id=user.id, role="user", content=user_message, date=target_date)
@@ -58,7 +59,7 @@ def chat():
 def chat_history():
     user = _ensure_user()
     date_str = request.args.get("date")
-    target = date_type.fromisoformat(date_str) if date_str else date_type.today()
+    target = date_type.fromisoformat(date_str) if date_str else local_today()
     messages = (
         ChatMessage.query
         .filter_by(user_id=user.id)

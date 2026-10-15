@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import WeightLog
 from app.routes.chat import _ensure_user
+from app.services.energy import local_today
 
 weight_bp = Blueprint("weight", __name__)
 
@@ -11,7 +12,7 @@ weight_bp = Blueprint("weight", __name__)
 def get_weight():
     user = _ensure_user()
     days = int(request.args.get("days", 30))
-    since = date.today() - timedelta(days=days)
+    since = local_today() - timedelta(days=days)
     logs = (
         WeightLog.query
         .filter_by(user_id=user.id)
@@ -33,7 +34,7 @@ def post_weight():
 
     log = WeightLog(
         user_id=user.id,
-        date=body.get("date", date.today().isoformat()),
+        date=body.get("date", local_today().isoformat()),
         weight_kg=float(weight_kg),
         source=body.get("source", "manual"),
         photo_data=body.get("photo_data"),

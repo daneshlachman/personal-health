@@ -7,6 +7,7 @@ import anthropic
 from app import db
 from app.models import WhoopData, NutritionLog, WeightLog, Workout, ChatMessage
 from app.services.workout_utils import dedupe_workouts
+from app.services.energy import local_today
 
 MODEL = "claude-sonnet-4-6"
 MAX_HISTORY_FOOD = 0
@@ -85,7 +86,7 @@ def calculate_tdee(user_id: str, today: date) -> str:
 
 
 def build_context(user_id: str, user_message: str = "", target_date: date = None) -> str:
-    today = target_date or date.today()
+    today = target_date or local_today()
     rich = _needs_rich_context(user_message)
     long_history = _needs_long_history(user_message)
 
@@ -234,7 +235,7 @@ WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search"}
 
 
 def _get_history(user_id: str, limit: int, target_date: date = None) -> list[dict]:
-    d = target_date or date.today()
+    d = target_date or local_today()
     messages = (
         ChatMessage.query
         .filter_by(user_id=user_id, date=d)
@@ -399,7 +400,7 @@ def extract_nutrition(user_id: str, assistant_reply: str, target_date: date = No
             continue
         log = NutritionLog(
             user_id=user_id,
-            date=target_date or date.today(),
+            date=target_date or local_today(),
             meal_type=item.get("meal_type"),
             description=item.get("description", ""),
             calories=item.get("calories"),

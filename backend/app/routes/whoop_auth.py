@@ -3,6 +3,7 @@ from flask import Blueprint, redirect, request, jsonify, current_app
 from app import db
 from app.routes.chat import _ensure_user
 from app.services import whoop
+from app.services.energy import local_today
 
 whoop_bp = Blueprint("whoop", __name__)
 
@@ -93,7 +94,7 @@ def history():
     from datetime import date, timedelta
     user = _ensure_user()
     days = int(request.args.get("days", 30))
-    since = date.today() - timedelta(days=days)
+    since = local_today() - timedelta(days=days)
     records = (
         WhoopData.query
         .filter_by(user_id=user.id)
@@ -123,7 +124,7 @@ def today():
     from datetime import date
     user = _ensure_user()
     date_str = request.args.get("date")
-    target = date.fromisoformat(date_str) if date_str else date.today()
+    target = date.fromisoformat(date_str) if date_str else local_today()
     record = WhoopData.query.filter_by(user_id=user.id, date=target).first()
     if not record:
         return jsonify({"error": "no data"})

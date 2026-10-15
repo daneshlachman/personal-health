@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import NutritionLog
 from app.routes.chat import _ensure_user
+from app.services.energy import local_today
 
 nutrition_bp = Blueprint("nutrition", __name__)
 
@@ -10,7 +11,7 @@ nutrition_bp = Blueprint("nutrition", __name__)
 @nutrition_bp.route("/nutrition", methods=["GET"])
 def get_nutrition():
     user = _ensure_user()
-    day_str = request.args.get("date", date.today().isoformat())
+    day_str = request.args.get("date", local_today().isoformat())
     try:
         day = date.fromisoformat(day_str)
     except ValueError:
@@ -36,7 +37,7 @@ def post_nutrition():
 
     log = NutritionLog(
         user_id=user.id,
-        date=body.get("date", date.today().isoformat()),
+        date=body.get("date", local_today().isoformat()),
         meal_type=body.get("meal_type"),
         description=description,
         calories=body.get("calories"),
@@ -54,7 +55,7 @@ def log_ai():
     user = _ensure_user()
     body = request.get_json(silent=True) or {}
     description = body.get("description", "").strip()
-    date_str = body.get("date", date.today().isoformat())
+    date_str = body.get("date", local_today().isoformat())
     meal_type = body.get("meal_type")
 
     if not description:

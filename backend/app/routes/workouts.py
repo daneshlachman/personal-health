@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from app.models import Workout
 from app.routes.chat import _ensure_user
+from app.services.energy import local_today
 
 workouts_bp = Blueprint("workouts", __name__)
 
@@ -91,7 +92,7 @@ RECOMMENDATION_LOCK_ID = 7_301_002
 
 def _parse_date(value):
     from datetime import date
-    return date.fromisoformat(value) if value else date.today()
+    return date.fromisoformat(value) if value else local_today()
 
 
 def _recommendation_state(user_id, target):
