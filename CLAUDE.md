@@ -13,6 +13,13 @@ danesh-health/
 
 Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-frontend.yml`). Backend draait `flask db upgrade` bij container start, dus migraties gaan automatisch mee.
 
+### Azure hosting & kosten
+- Backend: Container App `danesh-health-backend` (RG `Danesh-Health`, environment in RG `Tools-Danesh`), scale-to-zero (min 0 replicas) → ~€0,30/maand. Image op **GitHub Container Registry** (`ghcr.io/daneshlachman/health-dashboard-backend`), gepulld met een `read:packages` token (secret `ghcrio-daneshlachman`, gedeeld met westerdokzon).
+- Frontend: Static Web App, gratis tier.
+- Database: Postgres Flexible B1ms 32 GB in het **gratis 12-maanden-aanbod, verloopt 13 juni 2027** → daarna ~€15/maand. Vóór die datum migreren naar een gratis Postgres (Neon/Supabase) of accepteren.
+- `westerdokzon` in RG `Tools-Danesh` is een ander project (min 1 replica, ~€3,70/maand) — niet aanraken.
+- Elk uur (06–23u) roept `.github/workflows/scheduled-sync.yml` `POST /api/sync/scheduled` aan (alleen data-sync, geen Claude calls).
+
 ---
 
 ## Backend (Flask)
