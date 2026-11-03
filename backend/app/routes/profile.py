@@ -187,7 +187,19 @@ def _calorie_days(days: int) -> list[dict]:
 
 @profile_bp.route("/calories/history", methods=["GET"])
 def calories_history():
-    return jsonify(_calorie_days(int(request.args.get("days", 30))))
+    rows = _calorie_days(int(request.args.get("days", 30)))
+    # Days that aren't fully logged get an intake estimate: that day's burn plus the
+    # average surplus the weight trend puts on unlogged days (last 28 days). Rough on
+    # purpose: a single day's weight says nothing; this is the period's pattern.
+    est = _intake_estimate(history=rows)
+    surplus = est.get("unlogged_surplus") if est.get("ready") else None
+    today = local_today().isoformat()
+    for r in rows:
+        r["consumed_estimated"] = (
+            max(r["consumed"], r["burned_raw"] + surplus)
+            if surplus is not None and not r["complete"] and r["date"] < today else None
+        )
+    return jsonify(rows)
 
 
 CALIBRATION_DAYS = 28
@@ -257,14 +269,16 @@ def refresh_tdee_factor(force: bool = False):
     db.session.commit()
 
 
-def _intake_estimate(days: int = CALIBRATION_DAYS) -> dict:
+def _intake_estimate(days: int = CALIBRATION_DAYS, history: list | None = None) -> dict:
     """What was eaten according to the scale: average intake = average burn + weight trend
     x 7700 kcal/kg, over all days (logged or not). Minus what the fully logged days account
     for, the rest is what the unlogged days must have averaged. Today is left out. Uses the
     unscaled burn: the adaptive factor is itself derived from the weight trend."""
     today = local_today()
     since = today - timedelta(days=days)
-    rows = [r for r in _calorie_days(days) if r["date"] < today.isoformat()]
+    # `history` (newest last) saves recomputing the days when the caller already has them
+    rows = [r for r in (history if history is not None else _calorie_days(days))
+            if since.isoformat() < r["date"] < today.isoformat()]
     logged = [r for r in rows if r["complete"]]
     unlogged = [r for r in rows if not r["complete"]]
     weights = (
@@ -294,6 +308,8 @@ def _intake_estimate(days: int = CALIBRATION_DAYS) -> dict:
         "avg_intake_logged_days": round(logged_intake) if logged_intake is not None else None,
         "avg_intake_unlogged_days": round(unlogged_intake) if unlogged_intake is not None else None,
         "avg_burned_unlogged_days": round(unlogged_burned) if unlogged else None,
+        # What unlogged days ate on top of what they burned, used for per-day estimates
+        "unlogged_surplus": round(unlogged_intake - unlogged_burned) if unlogged else None,
     }
 
 

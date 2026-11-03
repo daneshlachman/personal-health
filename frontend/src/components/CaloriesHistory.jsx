@@ -124,7 +124,16 @@ function CalendarHeatmap({ data, onNeedDays }) {
             </div>
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wide">Consumed</p>
-              <p className="text-sm font-bold text-gray-900">{byDate[selected].consumed > 0 ? `${byDate[selected].consumed.toLocaleString()} kcal` : "—"}</p>
+              {byDate[selected].consumed_estimated != null ? (
+                <>
+                  <p className="text-sm font-bold text-gray-400">~{byDate[selected].consumed_estimated.toLocaleString()} kcal</p>
+                  <p className="text-[10px] text-gray-400">
+                    est. from weight{byDate[selected].consumed > 0 ? ` · ${byDate[selected].consumed.toLocaleString()} logged` : ""}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm font-bold text-gray-900">{byDate[selected].consumed > 0 ? `${byDate[selected].consumed.toLocaleString()} kcal` : "—"}</p>
+              )}
             </div>
             {byDate[selected].balance !== null && (
               <div>
