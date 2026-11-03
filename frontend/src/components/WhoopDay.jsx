@@ -135,7 +135,7 @@ const xAxisFor = (data) => (
 function WeekBars({ week, dataKey, colorFn, unit = "%" }) {
   const data = weekData(week, (d) => ({ value: d[dataKey] ?? null }));
   return (
-    <ResponsiveContainer width="100%" height={150}>
+    <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 18, right: 4, bottom: 0, left: 4 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
         {xAxisFor(data)}
@@ -156,7 +156,7 @@ function WeekLine({ week, dataKey, format = (v) => v }) {
   const data = weekData(week, (d) => ({ value: d[dataKey] ?? null }));
   const id = `fill-${dataKey}`;
   return (
-    <ResponsiveContainer width="100%" height={140}>
+    <ResponsiveContainer width="100%" height={190}>
       <ComposedChart data={data} margin={{ top: 18, right: 14, bottom: 0, left: 14 }}>
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
@@ -183,7 +183,7 @@ function WeekSleepHours({ week }) {
   const dot = (color) => ({ r: 3, fill: "#fff", stroke: color, strokeWidth: 2 });
   return (
     <>
-      <ResponsiveContainer width="100%" height={160}>
+      <ResponsiveContainer width="100%" height={210}>
         <LineChart data={data} margin={{ top: 18, right: 14, bottom: 0, left: 14 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
           {xAxisFor(data)}
@@ -219,7 +219,7 @@ function WeekBedtimes({ week }) {
   });
   const last = data.length - 1;
   return (
-    <ResponsiveContainer width="100%" height={180}>
+    <ResponsiveContainer width="100%" height={230}>
       <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
         {xAxisFor(data)}
@@ -259,8 +259,6 @@ function RecoveryView({ day, week, baseline }) {
           <MetricRow label="Heart rate variability" value={day.hrv_ms} baseline={baseline.hrv_ms} unit=" ms" better="up" format={Math.round} />
           <MetricRow label="Resting heart rate" value={day.resting_hr} baseline={baseline.resting_hr} unit=" bpm" better="down" format={Math.round} />
           <MetricRow label="Respiratory rate" value={day.respiratory_rate} baseline={baseline.respiratory_rate} better="down" format={dec1} />
-          {day.spo2_pct != null && <MetricRow label="Blood oxygen" value={day.spo2_pct} baseline={baseline.spo2_pct} unit="%" better="up" format={dec1} />}
-          {day.skin_temp_c != null && <MetricRow label="Skin temperature" value={day.skin_temp_c} baseline={baseline.skin_temp_c} unit="°C" format={dec1} />}
           <MetricRow label="Sleep performance" value={day.sleep_score} baseline={baseline.sleep_score} unit="%" better="up" format={Math.round} />
         </div>
         <VsAverage date={day.date} />
@@ -286,7 +284,6 @@ function SleepView({ day, week, baseline }) {
           <MetricRow label="Hours vs. needed" value={day.hours_vs_needed_pct} baseline={baseline.hours_vs_needed_pct} unit="%" better="up" format={Math.round} />
           <MetricRow label="Sleep consistency" value={day.sleep_consistency_pct} baseline={baseline.sleep_consistency_pct} unit="%" better="up" format={Math.round} />
           <MetricRow label="Sleep efficiency" value={day.sleep_efficiency_pct} baseline={baseline.sleep_efficiency_pct} unit="%" better="up" format={Math.round} />
-          <MetricRow label="Disturbances" value={day.disturbances} baseline={baseline.disturbances} better="down" format={Math.round} />
         </div>
         <VsAverage date={day.date} />
       </Card>
@@ -309,7 +306,6 @@ function SleepView({ day, week, baseline }) {
             <StageRow label="Light" hours={stages.light} total={day.in_bed_hours} color="#a5b4fc" />
             <StageRow label="Deep (SWS)" hours={stages.deep} total={day.in_bed_hours} color="#f472b6" />
             <StageRow label="REM" hours={stages.rem} total={day.in_bed_hours} color="#a855f7" />
-            {day.sleep_cycles != null && <p className="text-[11px] text-gray-400">{day.sleep_cycles} sleep cycles</p>}
           </div>
         ) : (
           <p className="text-xs text-gray-400">No sleep stages for this night yet.</p>
