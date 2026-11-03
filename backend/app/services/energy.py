@@ -93,6 +93,7 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
         tdee = bmr + tef + step_kcal(full_day_steps, weight_kg) + w_kcal
         s_kcal = steps_kcal_now
     else:
+        full_day_steps = non_workout_steps
         s_kcal = step_kcal(non_workout_steps, weight_kg)
         tdee = burned_now = bmr + tef + s_kcal + w_kcal
 
@@ -107,6 +108,7 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
         "steps": steps_day,
         "steps_source": "whoop" if measured else "estimate",
         "workout_steps": w_steps,
+        "full_day_steps": full_day_steps,  # non-workout steps behind `tdee` (today: the estimate)
         "workout_kcal": round(w_kcal),
         "workout_notes": w_notes,
         "workouts": w_items,

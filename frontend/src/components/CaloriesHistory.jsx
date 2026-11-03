@@ -136,7 +136,7 @@ function CalendarHeatmap({ data, onNeedDays }) {
               </div>
             )}
           </div>
-          {byDate[selected].breakdown && <BurnSum b={byDate[selected].breakdown} burned={byDate[selected].burned} />}
+          {byDate[selected].breakdown && <BurnSum b={byDate[selected].breakdown} burned={byDate[selected].burned} isToday={selected === todayISO} />}
         </div>
       )}
     </div>
@@ -144,12 +144,22 @@ function CalendarHeatmap({ data, onNeedDays }) {
 }
 
 // BMR + digestion + steps + workouts (+ weight-trend correction) = burned
-function BurnSum({ b, burned }) {
+// Steps inside Garmin workouts are already in the workout kcal, so they're left out here.
+// Today's burn is a full-day estimate: at least a typical day's steps.
+function stepsLabel(b, isToday) {
+  const counted = Math.max(0, b.steps - (b.workout_steps || 0));
+  const parts = [counted.toLocaleString() + (isToday ? " so far" : "")];
+  if (isToday && b.full_day_steps > counted) parts.push(`full day est. ${b.full_day_steps.toLocaleString()}`);
+  if (b.steps_source === "estimate") parts.push("est.");
+  if (b.workout_steps) parts.push(`excl. ${b.workout_steps.toLocaleString()} in workouts`);
+  return `Steps (${parts.join(", ")})`;
+}
+
+function BurnSum({ b, burned, isToday }) {
   const rows = [
     ["BMR", b.bmr],
     ["Digestion (10%)", b.tef],
-    // Steps inside Garmin workouts are already in the workout kcal, so they're left out here
-    [`Steps (${Math.max(0, b.steps - (b.workout_steps || 0)).toLocaleString()}${b.steps_source === "estimate" ? ", est." : ""}${b.workout_steps ? `, excl. ${b.workout_steps.toLocaleString()} in workouts` : ""})`, b.step_kcal],
+    [stepsLabel(b, isToday), b.step_kcal],
     // One line per workout (Garmin/Hevy/Whoop title); older responses only have the total
     ...(b.workouts?.length ? b.workouts.map(w => [w.title || "Workout", w.kcal]) : b.workout_kcal ? [["Workouts", b.workout_kcal]] : []),
   ];
