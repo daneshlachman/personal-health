@@ -300,9 +300,9 @@ function Ring({ value, goal, label, color, size = 80, showPct = true, unit = "" 
   );
 }
 
-function QuickLogModal({ meal, date, onClose, onSaved }) {
+function QuickLogModal({ meal, date, onClose, onSaved, initialPhoto = null }) {
   const [text, setText] = useState("");
-  const [photo, setPhoto] = useState(null); // data URL of a meal photo, sent along with the text
+  const [photo, setPhoto] = useState(initialPhoto); // data URL of a meal photo, sent along with the text
   const [logging, setLogging] = useState(false);
   const [status, setStatus] = useState(null);
   const fileRef = useRef();
@@ -520,8 +520,15 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   );
 }
 
-function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
+function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog, onPhoto }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const photoRef = useRef();
+
+  const pickPhoto = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (file) onPhoto(await compressImage(file, 1280, 0.8));
+  };
 
   const total = entries.reduce(
     (acc, e) => ({
@@ -550,6 +557,7 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
                 <path d="M6 1v10M1 6h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
               </svg>
             </button>
+            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
             {menuOpen && (
               <div className="absolute right-0 top-8 z-20 bg-white rounded-xl shadow-lg border border-gray-100 py-1 w-36" onClick={() => setMenuOpen(false)}>
                 <button onClick={onQuickLog} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
@@ -557,6 +565,9 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog }) {
                 </button>
                 <button onClick={onAdd} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                   <span>🔍</span> Manual
+                </button>
+                <button onClick={() => photoRef.current.click()} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                  <span>📷</span> Photo
                 </button>
               </div>
             )}
@@ -658,6 +669,7 @@ export default function NutritionLog() {
   const [showKcal, setShowKcal] = useState(null);
   const [addingTo, setAddingTo] = useState(null);
   const [quickLogMeal, setQuickLogMeal] = useState(null);
+  const [quickLogPhoto, setQuickLogPhoto] = useState(null);
   const [editEntry, setEditEntry] = useState(null);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const calorieGoal = goals.calories;
@@ -797,7 +809,8 @@ export default function NutritionLog() {
             onDelete={handleDelete}
             onAdd={() => setAddingTo(meal)}
             onEdit={(entry) => setEditEntry(entry)}
-            onQuickLog={() => setQuickLogMeal(meal)}
+            onQuickLog={() => { setQuickLogPhoto(null); setQuickLogMeal(meal); }}
+            onPhoto={(photo) => { setQuickLogPhoto(photo); setQuickLogMeal(meal); }}
           />
         ))
       )}
@@ -814,6 +827,7 @@ export default function NutritionLog() {
       {quickLogMeal && (
         <QuickLogModal
           meal={quickLogMeal}
+          initialPhoto={quickLogPhoto}
           date={date}
           onClose={() => setQuickLogMeal(null)}
           onSaved={handleSaved}
