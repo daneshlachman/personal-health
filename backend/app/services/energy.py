@@ -13,7 +13,9 @@ HEIGHT_CM = 192
 DATE_OF_BIRTH = date(1999, 10, 3)
 DEFAULT_DAILY_STEPS = 10000
 LOCAL_TZ = ZoneInfo("Europe/Amsterdam")
-KCAL_PER_STEP_AT_70KG = 0.04
+# Net walking cost ~0.5 kcal/kg/km (ACSM, resting excluded: that's in BMR) with a
+# ~0.8 m stride at 192 cm → 0.5 × 70 / 1250 ≈ 0.028 kcal per step at 70 kg
+KCAL_PER_STEP_AT_70KG = 0.028
 TYPICAL_STEPS_WINDOW_DAYS = 14
 
 
@@ -58,7 +60,7 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
     the count so far. Returns the full-day estimate and, for today, what's burned so far."""
     bmr = bmr_for(weight_kg, day)
     tef = bmr * 0.10
-    w_kcal, w_notes = calc_workout_kcal(workouts, weight_kg)
+    w_kcal, w_notes = calc_workout_kcal(workouts, weight_kg, (bmr + tef) / (24 * 60))
     w_steps = workout_steps(workouts)
 
     measured = steps is not None

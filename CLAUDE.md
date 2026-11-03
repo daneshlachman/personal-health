@@ -134,7 +134,8 @@ Componenten in `frontend/src/components/`: Dashboard, NutritionLog, WorkoutLog, 
 
 ## Energie / TDEE
 Eén berekening in `backend/app/services/energy.py` (Dashboard, calorie-historie en chat-context):
-BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.04 kcal × gewicht/70 + workout kcal.
+BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.028 kcal × gewicht/70 (netto loopkosten) + workout kcal.
+- Workout kcal is netto: device-kcal minus (BMR+TEF) per minuut × duur, want rust zit al in BMR. Bij overlap telt Garmin > Whoop > Hevy (Hevy is alleen een MET-schatting).
 - Stappen = Whoop `step_count` minus Garmin workout-stappen (die zitten al in workout kcal).
 - Vandaag: BMR+TEF geschaald op tijd van de dag, stappen tot nu toe tellen volledig; dag-schatting gebruikt max(stappen nu, 14-daags gemiddelde).
 - Geen Whoop stappen → 14-daags gemiddelde → profiel `avg_daily_steps` → 10.000.
