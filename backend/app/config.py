@@ -11,6 +11,9 @@ class BaseConfig:
         "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/healthdb"
     )
 
+    # Shared secret for all /api requests (X-API-Key header or ?key=); unset = no check
+    API_KEY = os.environ.get("API_KEY", "")
+
     # Claude
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 

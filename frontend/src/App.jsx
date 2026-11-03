@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { API } from "./utils/api";
+import { API, getApiKey, setApiKey } from "./utils/api";
 import Dashboard from "./components/Dashboard";
 import NutritionLog from "./components/NutritionLog";
 import Chat from "./components/Chat";
@@ -11,10 +11,46 @@ const TABS = [
   { id: "chat", label: "Chat", icon: "💬" },
 ];
 
+// Asked once per device (and again if the backend rejects the key)
+function KeyPrompt({ onSaved }) {
+  const [value, setValue] = useState("");
+  const save = () => {
+    if (!value.trim()) return;
+    setApiKey(value);
+    onSaved();
+  };
+  if (needsKey) return <KeyPrompt onSaved={() => { setNeedsKey(false); setResumeKey((k) => k + 1); }} />;
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-gray-50 flex items-center justify-center p-6">
+      <div className="bg-white rounded-2xl shadow-sm p-5 w-full max-w-sm space-y-3">
+        <p className="text-lg font-bold text-gray-900">API key</p>
+        <p className="text-xs text-gray-400">Enter the key once on this device. It's stored only here.</p>
+        <input
+          autoFocus type="password" autoComplete="off" value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+        <button onClick={save} disabled={!value.trim()} className="w-full bg-brand-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   const [resumeKey, setResumeKey] = useState(0);
+  const [needsKey, setNeedsKey] = useState(() => !getApiKey());
+
+  useEffect(() => {
+    const onUnauthorized = () => setNeedsKey(true);
+    window.addEventListener("api-unauthorized", onUnauthorized);
+    return () => window.removeEventListener("api-unauthorized", onUnauthorized);
+  }, []);
 
   // Warmup ping — fires immediately so the container starts heating up.
   // Response is intentionally ignored; this just breaks the cold-start silence.

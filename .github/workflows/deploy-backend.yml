@@ -12,6 +12,7 @@ env:
   # GitHub Container Registry (free) instead of Azure Container Registry (~€4.30/month).
   # The Container App pulls with a read:packages token stored as its registry secret.
   IMAGE: ghcr.io/daneshlachman/health-dashboard-backend
+  API_KEY: ${{ secrets.API_KEY }}
 
 permissions:
   contents: read
@@ -46,10 +47,22 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      # The app's API key comes from the GitHub secret API_KEY. Without it the app stays
+      # open (the backend skips the check when API_KEY is unset).
+      - name: Set API key secret
+        if: env.API_KEY != ''
+        run: |
+          az containerapp secret set \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.CONTAINER_APP_NAME }}" \
+            --secrets "api-key=$API_KEY" \
+            --output none
+
       - name: Deploy to Azure Container Apps
         run: |
           az containerapp update \
             --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
             --name "${{ secrets.CONTAINER_APP_NAME }}" \
             --image "${{ env.IMAGE }}:${{ github.sha }}" \
+            ${API_KEY:+--set-env-vars API_KEY=secretref:api-key} \
             --output none

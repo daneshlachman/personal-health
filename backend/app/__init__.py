@@ -7,6 +7,30 @@ db = SQLAlchemy()
 migrate = Migrate()
 
 
+# Reached without our header: Whoop redirects the browser back here after login
+OPEN_PATHS = {"/api/whoop/callback"}
+
+
+def _require_api_key(app):
+    """Every /api request needs the key, as an X-API-Key header or a ?key= query parameter
+    (for links and <img> tags that can't send headers). No API_KEY configured = open,
+    so a deploy before the key is set doesn't lock anything out."""
+    import hmac
+    from flask import request
+
+    @app.before_request
+    def check_key():
+        expected = app.config.get("API_KEY")
+        if not expected or request.method == "OPTIONS" or not request.path.startswith("/api/"):
+            return None
+        if request.path in OPEN_PATHS:
+            return None
+        given = request.headers.get("X-API-Key") or request.args.get("key") or ""
+        if not hmac.compare_digest(given, expected):
+            return {"error": "unauthorized"}, 401
+        return None
+
+
 def create_app(config_name=None):
     app = Flask(__name__)
 
@@ -47,6 +71,8 @@ def create_app(config_name=None):
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+    _require_api_key(app)
 
     @app.route("/health")
     def health():

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { API } from "../utils/api";
+import { API, withKey } from "../utils/api";
 import { cachedFetch, setCache } from "../utils/cache";
 import { sunTimes, useThemeSetting } from "../utils/theme";
 
@@ -193,7 +193,7 @@ export default function Settings({ onBack, whoopConnected, syncing, onSync, onDi
             </p>
           </div>
           {!whoopConnected && (
-            <a href={`${API}/api/whoop/authorize`} className="text-xs bg-black text-white px-3 py-1.5 rounded-lg font-medium">
+            <a href={withKey(`${API}/api/whoop/authorize`)} className="text-xs bg-black text-white px-3 py-1.5 rounded-lg font-medium">
               Connect
             </a>
           )}

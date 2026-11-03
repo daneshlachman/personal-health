@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { API } from "../utils/api";
+import { API, withKey } from "../utils/api";
 import { toDecimal } from "../utils/decimal";
 import { invalidateCachePrefix } from "../utils/cache";
 import { usePinchZoom } from "../utils/usePinchZoom";
@@ -72,7 +72,7 @@ function compressImage(file, maxPx = 1800, quality = 0.88) {
 const todayISO = new Date().toISOString().slice(0, 10);
 
 // Photos are served separately so the weight list stays small
-const photoOf = (r) => (r?.photo_url ? `${API}${r.photo_url}` : null);
+const photoOf = (r) => (r?.photo_url ? withKey(`${API}${r.photo_url}`) : null);
 
 function WeightModal({ entry, onClose, onSaved }) {
   const isNew = !entry;

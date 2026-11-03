@@ -158,7 +158,10 @@ BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.028 kcal × gewicht/70 (net
 
 ### Als je nieuw bent in dit project, lees dit:
 1. Backend op Azure, frontend PWA — beide in deze repo, push naar `master` deployt
-2. Backend gebruikt **geen auth** (single user) — frontend stuurt gewoon requests
+2. Backend vraagt een **gedeelde API-sleutel** op elk `/api`-request: header `X-API-Key` of `?key=` (voor `<img>`/links). Uitgezonderd: `/api/whoop/callback`, `/health`. Zonder `API_KEY` env staat de check uit.
+   - Sleutel staat lokaal in `backend/.env` (`API_KEY=`) en `frontend/.env.local` (`VITE_API_KEY=`), beide gitignored. Productie: GitHub secret `API_KEY` → deploy-workflow zet hem als Container App secret; scheduled sync stuurt hem mee.
+   - Productie-API testen: `curl -H "X-API-Key: $(grep API_KEY backend/.env | cut -d= -f2)" <backend-url>/api/...`
+   - App: sleutel één keer per apparaat invoeren (localStorage); `installApiKeyFetch()` in `utils/api.js` zet de header op elke API-fetch, `withKey()` voor URL's.
 3. API base URL: `frontend/src/utils/api.js` (uit `VITE_API_BASE_URL`)
 
 ### Valkuilen
