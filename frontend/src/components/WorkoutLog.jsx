@@ -26,7 +26,6 @@ function workoutEmoji(w) {
   return "🏃";
 }
 const DAYS = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
-const MONTHS = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
 
 function getMonday(date) {
   const d = new Date(date);
@@ -44,35 +43,27 @@ function toLocalISO(date) {
   return `${y}-${m}-${d}`;
 }
 
-const WEEKS_SHOWN = 2;
+// Weeks shown per view; both end with the week containing the reference day
+const VIEW_WEEKS = { week: 2, month: 4 };
+const VIEW_LABELS = { week: "2 weken", month: "4 weken" };
 
-// Monday of the week before `d`, so `d` falls in the second (latest) row
-function twoWeekStart(d) {
+// Monday of the first row, so `d` falls in the last (latest) row
+function periodStart(d, weeks) {
   const m = getMonday(d);
-  m.setDate(m.getDate() - 7 * (WEEKS_SHOWN - 1));
+  m.setDate(m.getDate() - 7 * (weeks - 1));
   return m;
 }
 
-// Month grid, or two week rows when weekStart (a Monday) is given
-function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, selectedDate }) {
+// `weeks` rows of 7 days starting at weekStart (a Monday)
+function CalendarMonth({ weekStart, weeks, workoutsByDate, onDayClick, selectedDate }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const cells = [];
-  if (weekStart) {
-    for (let i = 0; i < 7 * WEEKS_SHOWN; i++) {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() + i);
-      cells.push(d);
-    }
-  } else {
-    const lastDay = new Date(year, month + 1, 0);
-    const cur = new Date(getMonday(new Date(year, month, 1)));
-    while (cur <= lastDay || cells.length % 7 !== 0) {
-      cells.push(new Date(cur));
-      cur.setDate(cur.getDate() + 1);
-      if (cells.length > 42) break;
-    }
+  for (let i = 0; i < 7 * weeks; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    cells.push(d);
   }
 
   return (
@@ -85,7 +76,6 @@ function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, sel
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           const iso = toLocalISO(day);
-          const isCurrentMonth = weekStart || day.getMonth() === month;
           const isToday = day.getTime() === today.getTime();
           const workouts = workoutsByDate[iso] || [];
           const isSelected = selectedDate === iso;
@@ -97,7 +87,6 @@ function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, sel
               onClick={() => !isFuture && onDayClick(iso)}
               disabled={isFuture}
               className={`flex flex-col items-center py-1.5 rounded-xl
-                ${!isCurrentMonth ? "opacity-25" : ""}
                 ${isSelected ? "bg-brand-500" : isToday ? "bg-brand-50" : isFuture ? "" : "hover:bg-gray-100"}
                 ${isFuture ? "cursor-default" : "cursor-pointer"}
               `}
@@ -378,10 +367,9 @@ export default function WorkoutLog() {
   const [selectedDate, setSelectedDate] = useState(toLocalISO(new Date()));
 
   const now = new Date();
-  const [viewYear, setViewYear] = useState(now.getFullYear());
-  const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [calView, setCalView] = useState("week");
-  const [weekStart, setWeekStart] = useState(() => twoWeekStart(now));
+  const [weekStart, setWeekStart] = useState(() => periodStart(now, VIEW_WEEKS.week));
+  const weeks = VIEW_WEEKS[calView];
 
   const fetchWorkouts = () => {
     setLoading(true);
@@ -421,42 +409,25 @@ export default function WorkoutLog() {
     return acc;
   }, {});
 
-  const prevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
-    else setViewMonth(m => m - 1);
-    setSelectedDate(null);
-  };
-  const nextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
-    else setViewMonth(m => m + 1);
-    setSelectedDate(null);
-  };
-
   const shiftWeek = (n) => {
     const d = new Date(weekStart);
-    d.setDate(d.getDate() + 7 * WEEKS_SHOWN * n);
+    d.setDate(d.getDate() + 7 * weeks * n);
     setWeekStart(d);
     setSelectedDate(null);
   };
 
-  // Keep the switched-to view on the same period the user was looking at
+  // Keep the switched-to view on the period the user was looking at (its latest day)
   const switchView = (view) => {
     if (view === calView) return;
-    if (view === "month") {
-      const ref = selectedDate ? new Date(selectedDate + "T12:00:00") : weekStart;
-      setViewYear(ref.getFullYear());
-      setViewMonth(ref.getMonth());
-    } else {
-      const inView = (d) => d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-      const ref = selectedDate ? new Date(selectedDate + "T12:00:00")
-        : inView(now) ? now : new Date(viewYear, viewMonth, 1);
-      setWeekStart(twoWeekStart(ref));
-    }
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 7 * weeks - 1);
+    const ref = selectedDate ? new Date(selectedDate + "T12:00:00") : end > now ? now : end;
+    setWeekStart(periodStart(ref, VIEW_WEEKS[view]));
     setCalView(view);
   };
 
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7 * WEEKS_SHOWN - 1);
+  weekEnd.setDate(weekEnd.getDate() + 7 * weeks - 1);
   const fmtShort = (d) => d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
 
   const displayedWorkouts = workoutsByDate[selectedDate] || [];
@@ -471,7 +442,7 @@ export default function WorkoutLog() {
             onClick={() => switchView(calView === "week" ? "month" : "week")}
             className="text-xs bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium w-20"
           >
-            {calView === "week" ? "2 weken" : "Maand"}
+            {VIEW_LABELS[calView]}
           </button>
           <button
             onClick={syncAll} disabled={syncing}
@@ -487,15 +458,15 @@ export default function WorkoutLog() {
       {/* Calendar */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <button onClick={calView === "week" ? () => shiftWeek(-1) : prevMonth} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">‹</button>
+          <button onClick={() => shiftWeek(-1)} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">‹</button>
           <span className="text-sm font-semibold text-gray-800">
-            {calView === "week" ? `${fmtShort(weekStart)} – ${fmtShort(weekEnd)}` : `${MONTHS[viewMonth]} ${viewYear}`}
+            {`${fmtShort(weekStart)} – ${fmtShort(weekEnd)}`}
           </span>
-          <button onClick={calView === "week" ? () => shiftWeek(1) : nextMonth} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">›</button>
+          <button onClick={() => shiftWeek(1)} className="text-gray-400 hover:text-gray-600 px-2 py-1 text-lg">›</button>
         </div>
         <CalendarMonth
-          year={viewYear} month={viewMonth}
-          weekStart={calView === "week" ? weekStart : null}
+          weekStart={weekStart}
+          weeks={weeks}
           workoutsByDate={workoutsByDate}
           onDayClick={setSelectedDate}
           selectedDate={selectedDate}
