@@ -26,28 +26,42 @@ function KPI({ label, value, sub, color }) {
   );
 }
 
-// Days of history needed to cover the 1st of the given month
-function daysSince(year, month) {
-  return Math.ceil((new Date(todayISO + "T12:00:00") - new Date(year, month, 1, 12)) / 86400000) + 1;
+// Days of history needed to cover the given date
+function daysSince(date) {
+  return Math.ceil((new Date(todayISO + "T12:00:00") - date) / 86400000) + 1;
 }
+
+const WINDOW_WEEKS = 4;
+
+// Monday of the first week in a 4-week window that ends with the week `weeksBack` windows ago
+function windowStart(weeksBack) {
+  const d = new Date(todayISO + "T12:00:00");
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7 * (WINDOW_WEEKS - 1) - 7 * WINDOW_WEEKS * weeksBack);
+  return d;
+}
+
+const shortDate = (d) => `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
 
 function CalendarHeatmap({ data, onNeedDays }) {
   const byDate = Object.fromEntries(data.map(d => [d.date, d]));
-  const today = new Date(todayISO + "T12:00:00");
-  const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() });
-  const { year, month } = view;
-  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  // 0 = the last 4 weeks (this week included), 1 = the 4 weeks before, ...
+  const [page, setPage] = useState(0);
   const [selected, setSelected] = useState(null);
 
-  const shiftMonth = (n) => {
-    const d = new Date(year, month + n, 1);
-    setView({ year: d.getFullYear(), month: d.getMonth() });
+  const start = windowStart(page);
+  const cells = Array.from({ length: 7 * WINDOW_WEEKS }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+  const end = cells[cells.length - 1];
+
+  const shift = (n) => {
+    const next = Math.max(0, page + n);
+    setPage(next);
     setSelected(null);
-    onNeedDays(daysSince(d.getFullYear(), d.getMonth()));
+    onNeedDays(daysSince(windowStart(next)));
   };
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startOffset = (firstDay + 6) % 7;
   const days = ["Mo","Tu","We","Th","Fr","Sa","Su"];
 
   function dayColor(iso) {
@@ -63,11 +77,11 @@ function CalendarHeatmap({ data, onNeedDays }) {
     <div className="bg-white rounded-2xl p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1">
-          <button onClick={() => shiftMonth(-1)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500">‹</button>
-          <span className="text-sm font-semibold text-gray-800 w-20 text-center">
-            {MONTH_NAMES[month]} {year}
+          <button onClick={() => shift(1)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500">‹</button>
+          <span className="text-sm font-semibold text-gray-800 w-28 text-center">
+            {shortDate(start)} – {shortDate(end)}
           </span>
-          <button onClick={() => shiftMonth(1)} disabled={isCurrentMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 disabled:opacity-20">›</button>
+          <button onClick={() => shift(-1)} disabled={page === 0} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 disabled:opacity-20">›</button>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-gray-400">
           <span className="w-3 h-3 rounded-sm bg-green-500 inline-block" /> Deficit
@@ -79,18 +93,17 @@ function CalendarHeatmap({ data, onNeedDays }) {
         {days.map(d => <div key={d} className="text-center text-[10px] text-gray-400 font-medium py-1">{d}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-1">
-        {Array(startOffset).fill(null).map((_, i) => <div key={`e${i}`} />)}
-        {Array(daysInMonth).fill(null).map((_, i) => {
-          const day = i + 1;
-          const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        {cells.map((d) => {
+          const day = d.getDate();
+          const iso = toLocalISO(d);
           const isFuture = iso > todayISO;
           return (
             <div
-              key={day}
+              key={iso}
               onClick={() => !isFuture && setSelected(selected === iso ? null : iso)}
               className={`rounded-lg text-xs py-1 text-center font-medium transition-all flex flex-col items-center justify-center ${isFuture ? "text-gray-200" : "cursor-pointer " + dayColor(iso)} ${selected === iso ? "ring-2 ring-offset-1 ring-gray-500" : ""}`}
             >
-              <span>{day}</span>
+              <span>{day === 1 ? shortDate(d) : day}</span>
               {iso === todayISO
                 ? <span className="block w-1 h-1 rounded-full mt-0.5" style={{ backgroundColor: byDate[iso] ? "rgba(255,255,255,0.8)" : "#0ea5e9" }} />
                 : <span className="block w-1 h-1 mt-0.5" />
@@ -267,8 +280,8 @@ export default function CaloriesHistory({ onBack }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [kpiDays, setKpiDays] = useState(7);
-  // Grows when the calendar pages back to a month the loaded history doesn't cover
-  const [historyDays, setHistoryDays] = useState(Math.max(30, daysSince(new Date().getFullYear(), new Date().getMonth())));
+  // Grows when the calendar pages back to weeks the loaded history doesn't cover
+  const [historyDays, setHistoryDays] = useState(Math.max(30, daysSince(windowStart(0))));
 
   useEffect(() => {
     fetch(`${API}/api/calories/history?days=${historyDays}`)
