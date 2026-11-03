@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { API, withKey } from "../utils/api";
-import { cachedFetch, setCache } from "../utils/cache";
+import { cachedFetch, setCache, invalidateCachePrefix } from "../utils/cache";
 import { sunTimes, useThemeSetting } from "../utils/theme";
 
 const THEMES = [
@@ -41,70 +41,115 @@ function Appearance() {
   );
 }
 
-function CalorieGoal() {
-  const [saved, setSaved] = useState(null);
-  const [input, setInput] = useState("");
+// Calorie, protein and fat goals; carbs are whatever is left of the calories
+function NutritionGoals() {
+  const [profile, setProfile] = useState(null);
+  const [form, setForm] = useState({ calorie_goal: "", protein_goal_g: "", fat_goal_g: "" });
   const [status, setStatus] = useState(null); // "saving" | "saved" | error message
 
-  useEffect(() => {
-    cachedFetch(`${API}/api/profile`, "profile", (p) => {
-      setSaved(p.calorie_goal);
-      setInput(String(p.calorie_goal ?? ""));
+  const load = (p) => {
+    setProfile(p);
+    setForm({
+      calorie_goal: String(p.calorie_goal ?? ""),
+      protein_goal_g: String(p.protein_goal_g ?? p.macro_goals?.protein_g ?? ""),
+      fat_goal_g: String(p.fat_goal_g ?? p.macro_goals?.fat_g ?? ""),
     });
-  }, []);
+  };
+
+  useEffect(() => { cachedFetch(`${API}/api/profile`, "profile", load); }, []);
+
+  const num = (v) => parseInt(v, 10) || 0;
+  const carbs = Math.max(0, Math.round((num(form.calorie_goal) - 4 * num(form.protein_goal_g) - 9 * num(form.fat_goal_g)) / 4));
+  const goals = profile?.macro_goals;
+  const dirty = profile && (num(form.calorie_goal) !== profile.calorie_goal
+    || num(form.protein_goal_g) !== goals?.protein_g || num(form.fat_goal_g) !== goals?.fat_g);
 
   const save = async () => {
-    const goal = parseInt(input, 10);
-    if (!goal) return;
     setStatus("saving");
     try {
       const res = await fetch(`${API}/api/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ calorie_goal: goal }),
+        body: JSON.stringify({
+          calorie_goal: num(form.calorie_goal),
+          protein_goal_g: num(form.protein_goal_g),
+          fat_goal_g: num(form.fat_goal_g),
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setStatus(data.error || "Save failed"); return; }
       setCache("profile", data);
-      setSaved(data.calorie_goal);
+      load(data);
       setStatus("saved");
     } catch {
       setStatus("Save failed");
     }
   };
 
-  const dirty = input !== "" && parseInt(input, 10) !== saved;
+  const field = (key, label, unit) => (
+    <div>
+      <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">{label}</label>
+      <div className="flex items-center gap-1">
+        <input type="text" inputMode="numeric" autoComplete="off" value={form[key]}
+          onChange={(e) => { setForm((f) => ({ ...f, [key]: e.target.value.replace(/[^0-9]/g, "") })); setStatus(null); }}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        <span className="text-xs text-gray-400">{unit}</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
       <div>
-        <p className="text-sm font-semibold text-gray-900">Daily calorie goal</p>
-        <p className="text-xs text-gray-400 mt-0.5">Used for the calorie ring in Nutrition</p>
+        <p className="text-sm font-semibold text-gray-900">Nutrition goals</p>
+        <p className="text-xs text-gray-400 mt-0.5">Rings in Nutrition. Default protein 2 g/kg and fat 0.8 g/kg; carbs fill the rest.</p>
       </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          value={input}
-          onChange={(e) => { setInput(e.target.value.replace(/[^0-9]/g, "")); setStatus(null); }}
-          onKeyDown={(e) => e.key === "Enter" && dirty && save()}
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <span className="text-sm text-gray-500">kcal</span>
-        <button
-          onClick={save}
-          disabled={!dirty || status === "saving"}
-          className="bg-brand-500 text-white rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40"
-        >
+      <div className="grid grid-cols-3 gap-2">
+        {field("calorie_goal", "Calories", "kcal")}
+        {field("protein_goal_g", "Protein", "g")}
+        {field("fat_goal_g", "Fat", "g")}
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-500">Carbs: <span className="font-semibold text-gray-900">{carbs} g</span></span>
+        <button onClick={save} disabled={!dirty || status === "saving"}
+          className="bg-brand-500 text-white rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40">
           {status === "saving" ? "Saving…" : "Save"}
         </button>
       </div>
       {status && status !== "saving" && (
-        <p className={`text-xs ${status === "saved" ? "text-green-600" : "text-red-500"}`}>
-          {status === "saved" ? "Saved" : status}
-        </p>
+        <p className={`text-xs ${status === "saved" ? "text-green-600" : "text-red-500"}`}>{status === "saved" ? "Saved" : status}</p>
       )}
+    </div>
+  );
+}
+
+// Correct every burn number with what the weight trend says (Calories → reality check)
+function AdaptiveBurn() {
+  const [on, setOn] = useState(null);
+  useEffect(() => { cachedFetch(`${API}/api/profile`, "profile", (p) => setOn(p.adaptive_tdee !== false)); }, []);
+  const toggle = async () => {
+    const next = !on;
+    setOn(next);
+    const res = await fetch(`${API}/api/profile`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ adaptive_tdee: next }),
+    });
+    if (res.ok) {
+      setCache("profile", await res.json());
+      invalidateCachePrefix("tdee");
+    } else {
+      setOn(!next);
+    }
+  };
+  if (on == null) return null;
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-900">Adaptive burn</p>
+        <p className="text-xs text-gray-400 mt-0.5">Adjust calories burned to your weight trend, updated weekly</p>
+      </div>
+      <button onClick={toggle} className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${on ? "bg-brand-500" : "bg-gray-300"}`}>
+        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
+      </button>
     </div>
   );
 }
@@ -181,7 +226,9 @@ export default function Settings({ onBack, whoopConnected, syncing, onSync, onDi
 
       <Goals />
 
-      <CalorieGoal />
+      <NutritionGoals />
+
+      <AdaptiveBurn />
 
       <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between">

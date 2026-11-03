@@ -54,10 +54,19 @@ def typical_steps(user_id: str, day: date, known: dict | None = None) -> int:
     return (profile.avg_daily_steps if profile and profile.avg_daily_steps else None) or DEFAULT_DAILY_STEPS
 
 
+def current_factor(user_id: str) -> float:
+    """Correction from the weight trend (routes/profile.py: refresh_tdee_factor); 1 when off."""
+    profile = UserProfile.query.filter_by(user_id=user_id).first()
+    if not profile or profile.adaptive_tdee is False or not profile.tdee_factor:
+        return 1.0
+    return profile.tdee_factor
+
+
 def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, workouts: list,
-               now: datetime | None = None) -> dict:
+               now: datetime | None = None, factor: float = 1.0) -> dict:
     """Energy for one day. `steps` is the Whoop count (None if unknown); for today it is
-    the count so far. Returns the full-day estimate and, for today, what's burned so far."""
+    the count so far. Returns the full-day estimate and, for today, what's burned so far.
+    `factor` scales the totals to what the weight trend says; `tdee_raw` stays unscaled."""
     bmr = bmr_for(weight_kg, day)
     tef = bmr * 0.10
     w_kcal, w_notes = calc_workout_kcal(workouts, weight_kg, (bmr + tef) / (24 * 60))
@@ -87,8 +96,10 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
         tdee = burned_now = bmr + tef + s_kcal + w_kcal
 
     return {
-        "tdee": round(tdee),
-        "burned_now": round(burned_now),
+        "tdee": round(tdee * factor),
+        "tdee_raw": round(tdee),
+        "factor": factor,
+        "burned_now": round(burned_now * factor),
         "bmr": round(bmr),
         "tef": round(tef),
         "step_kcal": round(s_kcal),
@@ -109,4 +120,5 @@ def energy_for(user_id: str, day: date, weight_kg: float) -> dict:
     window_start = day - timedelta(days=TYPICAL_STEPS_WINDOW_DAYS)
     known = steps_by_day(user_id, window_start, day)
     workouts = Workout.query.filter_by(user_id=user_id, date=day).all()
-    return day_energy(day, weight_kg, known.get(day), typical_steps(user_id, day, known), workouts)
+    return day_energy(day, weight_kg, known.get(day), typical_steps(user_id, day, known), workouts,
+                      factor=current_factor(user_id))

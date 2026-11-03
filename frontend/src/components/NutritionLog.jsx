@@ -3,6 +3,7 @@ import { API } from "../utils/api";
 import { toDecimal } from "../utils/decimal";
 import { cachedFetch, setCache, invalidateCachePrefix } from "../utils/cache";
 import { searchCommon } from "../utils/commonFoods";
+import { compressImage } from "../utils/image";
 
 const toLocalISO = (d) => {
   const y = d.getFullYear();
@@ -59,7 +60,8 @@ function MiniCalendar({ selected, onSelect, onClose }) {
   );
 }
 
-const GOALS = { calories: 2400, protein_g: 180, carbs_g: 240, fat_g: 80 };
+// Fallback until the profile is loaded; the real goals come from Settings (profile.macro_goals)
+const DEFAULT_GOALS = { calories: 2400, protein_g: 175, carbs_g: 270, fat_g: 70 };
 const MEAL_ORDER = ["breakfast", "lunch", "dinner", "snack"];
 const MEAL_LABELS = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snack: "Snacks" };
 
@@ -300,18 +302,28 @@ function Ring({ value, goal, label, color, size = 80, showPct = true, unit = "" 
 
 function QuickLogModal({ meal, date, onClose, onSaved }) {
   const [text, setText] = useState("");
+  const [photo, setPhoto] = useState(null); // data URL of a meal photo, sent along with the text
   const [logging, setLogging] = useState(false);
   const [status, setStatus] = useState(null);
+  const fileRef = useRef();
+
+  const pickPhoto = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (file) setPhoto(await compressImage(file, 1280, 0.8));
+  };
+
+  const canLog = text.trim() || photo;
 
   const log = async () => {
-    if (!text.trim()) return;
+    if (!canLog) return;
     setLogging(true);
     setStatus("logging");
     try {
       const r = await fetch(`${API}/api/nutrition/log-ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: text.trim(), date, meal_type: meal }),
+        body: JSON.stringify({ description: text.trim(), date, meal_type: meal, ...(photo && { image: photo }) }),
       });
       const data = await r.json();
       if (data.entries?.length) {
@@ -340,10 +352,23 @@ function QuickLogModal({ meal, date, onClose, onSaved }) {
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); log(); } }}
-          placeholder={`e.g. 100g oatmeal, 200ml milk, 30g whey protein myprotein`}
+          placeholder={photo ? "Optional: e.g. 80g rice, 200g chicken breast" : "e.g. 100g oatmeal, 200ml milk, 30g whey protein myprotein"}
           rows={3}
           className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
         />
+        <div className="flex items-center gap-3">
+          {photo ? (
+            <div className="relative">
+              <img src={photo} alt="" className="w-16 h-16 rounded-xl object-cover" />
+              <button onClick={() => setPhoto(null)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-700 text-white text-xs flex items-center justify-center">×</button>
+            </div>
+          ) : null}
+          <button onClick={() => fileRef.current.click()} className="text-sm text-brand-500 font-medium flex items-center gap-1.5">
+            📷 {photo ? "Other photo" : "Add photo"}
+          </button>
+          <span className="text-[11px] text-gray-400">{photo ? "Amounts you type win over the photo" : ""}</span>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
+        </div>
         {status === "logging" && (
           <p className="text-xs text-brand-500 text-center animate-pulse">⏳ Logging with AI…</p>
         )}
@@ -355,12 +380,12 @@ function QuickLogModal({ meal, date, onClose, onSaved }) {
         )}
         <button
           onClick={log}
-          disabled={logging || !text.trim()}
+          disabled={logging || !canLog}
           className="w-full bg-brand-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40 hover:bg-brand-600 transition-colors"
         >
           {logging ? "Logging…" : "Log my food"}
         </button>
-        {!text.trim() && !logging && <RecentFoods meal={meal} date={date} onSaved={onSaved} onClose={onClose} />}
+        {!canLog && !logging && <RecentFoods meal={meal} date={date} onSaved={onSaved} onClose={onClose} />}
       </div>
     </div>
   );
@@ -634,10 +659,11 @@ export default function NutritionLog() {
   const [addingTo, setAddingTo] = useState(null);
   const [quickLogMeal, setQuickLogMeal] = useState(null);
   const [editEntry, setEditEntry] = useState(null);
-  const [calorieGoal, setCalorieGoal] = useState(GOALS.calories);
+  const [goals, setGoals] = useState(DEFAULT_GOALS);
+  const calorieGoal = goals.calories;
 
   useEffect(() => {
-    cachedFetch(`${API}/api/profile`, "profile", (p) => p?.calorie_goal && setCalorieGoal(p.calorie_goal));
+    cachedFetch(`${API}/api/profile`, "profile", (p) => p?.macro_goals && setGoals(p.macro_goals));
   }, []);
 
   const toggleMacro = (macro) => setShowKcal(prev => prev === macro ? null : macro);
@@ -735,7 +761,7 @@ export default function NutritionLog() {
           <div onClick={() => toggleMacro("protein")} className="cursor-pointer">
             <Ring
               value={showKcal === "protein" ? Math.round(totals.protein_g * 4) : totals.protein_g}
-              goal={showKcal === "protein" ? GOALS.protein_g * 4 : GOALS.protein_g}
+              goal={showKcal === "protein" ? goals.protein_g * 4 : goals.protein_g}
               label={showKcal === "protein" ? "Protein kcal" : "Protein"}
               color="#60a5fa" size={76} showPct={false} unit={showKcal === "protein" ? "kcal" : "g"}
             />
@@ -743,7 +769,7 @@ export default function NutritionLog() {
           <div onClick={() => toggleMacro("carbs")} className="cursor-pointer">
             <Ring
               value={showKcal === "carbs" ? Math.round(totals.carbs_g * 4) : totals.carbs_g}
-              goal={showKcal === "carbs" ? GOALS.carbs_g * 4 : GOALS.carbs_g}
+              goal={showKcal === "carbs" ? goals.carbs_g * 4 : goals.carbs_g}
               label={showKcal === "carbs" ? "Carbs kcal" : "Carbs"}
               color="#fbbf24" size={76} showPct={false} unit={showKcal === "carbs" ? "kcal" : "g"}
             />
@@ -751,7 +777,7 @@ export default function NutritionLog() {
           <div onClick={() => toggleMacro("fat")} className="cursor-pointer">
             <Ring
               value={showKcal === "fat" ? Math.round(totals.fat_g * 9) : totals.fat_g}
-              goal={showKcal === "fat" ? GOALS.fat_g * 9 : GOALS.fat_g}
+              goal={showKcal === "fat" ? goals.fat_g * 9 : goals.fat_g}
               label={showKcal === "fat" ? "Fat kcal" : "Fat"}
               color="#fb7185" size={76} showPct={false} unit={showKcal === "fat" ? "kcal" : "g"}
             />

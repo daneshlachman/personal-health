@@ -178,6 +178,13 @@ function CalibrationCard() {
         {c.logged_days} logged days · {c.weigh_ins} weigh-ins · weight {trend > 0 ? "+" : ""}{trend} kg/week ·
         avg intake {c.avg_intake.toLocaleString()} kcal
       </p>
+      <p className="text-[11px] text-gray-500 mt-2 border-t border-gray-100 pt-2">
+        {c.adaptive
+          ? c.applied_factor !== 1
+            ? `Applied to all burn numbers: ×${c.applied_factor}${c.applied_since ? ` (updated ${new Date(c.applied_since + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, refreshed weekly)` : ""}`
+            : "Adaptive burn is on; the correction starts once there's enough data."
+          : "Adaptive burn is off (Settings)."}
+      </p>
     </div>
   );
 }

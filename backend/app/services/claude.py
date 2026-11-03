@@ -314,8 +314,17 @@ Respond in the same language the user writes in. Be concise and data-driven."""
     )
 
 
-def log_food_quick(description: str, meal_type_hint: str, target_date_str: str, user_id: str) -> list:
-    """Lightweight food logging — no history, no health context, just food extraction."""
+def _image_block(data_url: str) -> dict:
+    """'data:image/jpeg;base64,...' (as the app sends it) → an image content block."""
+    header, _, b64 = data_url.partition(",")
+    media_type = header[5:].split(";")[0] if header.startswith("data:") and b64 else "image/jpeg"
+    return {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64 or data_url}}
+
+
+def log_food_quick(description: str, meal_type_hint: str, target_date_str: str, user_id: str,
+                   image: str | None = None) -> list:
+    """Lightweight food logging — no history, no health context, just food extraction.
+    With a photo, the foods and portions come from the image; amounts in the text win."""
     client = anthropic.Anthropic(api_key=current_app.config["ANTHROPIC_API_KEY"])
     tools = [WEB_SEARCH_TOOL] if _is_branded_food(description) else []
     meal_hint = f"The meal type is {meal_type_hint}. " if meal_type_hint else ""
@@ -325,8 +334,13 @@ def log_food_quick(description: str, meal_type_hint: str, target_date_str: str, 
 [{{"log_nutrition": true, "meal_type": "lunch", "description": "100g havermout", "calories": 362, "protein_g": 12.0, "carbs_g": 58.0, "fat_g": 7.0}}]
 ```
 Rules: one entry per food item, NEVO nutritional values, calories ≈ protein*4 + carbs*4 + fat*9, use web search for branded products, output ONLY the JSON array."""
+    if image:
+        system += """
+A photo of the meal is attached. Identify every food on it and estimate each portion in grams from what you see (plate size, typical portions). Amounts or foods stated in the text are facts: use them as given and only estimate the rest from the photo. Put the gram amount in each description."""
 
-    messages = [{"role": "user", "content": description}]
+    text_part = description or "Log what's on this photo."
+    content = [_image_block(image), {"type": "text", "text": text_part}] if image else description
+    messages = [{"role": "user", "content": content}]
     text = _create_until_done(client, messages, max_tokens=4000, system=system, tools=tools)
 
     code_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', text, re.DOTALL)

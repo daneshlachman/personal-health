@@ -86,12 +86,13 @@ def log_ai():
     description = body.get("description", "").strip()
     date_str = body.get("date", local_today().isoformat())
     meal_type = body.get("meal_type")
+    image = body.get("image")  # optional data URL of a meal photo
 
-    if not description:
-        return jsonify({"error": "description required"}), 400
+    if not description and not image:
+        return jsonify({"error": "description or image required"}), 400
 
     from app.services.claude import log_food_quick
-    entries = log_food_quick(description, meal_type, date_str, user.id)
+    entries = log_food_quick(description, meal_type, date_str, user.id, image=image)
     return jsonify({"entries": [e.to_dict() for e in entries], "count": len(entries)})
 
 

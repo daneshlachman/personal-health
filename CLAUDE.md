@@ -143,7 +143,9 @@ BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.028 kcal × gewicht/70 (net
 - Vandaag: BMR+TEF geschaald op tijd van de dag, stappen tot nu toe tellen volledig; dag-schatting gebruikt max(stappen nu, 14-daags gemiddelde).
 - Geen Whoop stappen → 14-daags gemiddelde → profiel `avg_daily_steps` → 10.000.
 - Volledig gelogde dag (`services/logging_status.py`): gelogd ≥ 60% van het verbruik, of handmatig gezet (`nutrition_day_status`, `GET/PUT /api/nutrition/day-status`). Alleen die dagen tellen mee in gemiddelden, saldo (`balance` is anders `null`), kalenderkleur, kalibratie en chat-context.
-- Controle: `/api/calories/calibration` vergelijkt met de gewichtstrend (gemiddelde intake op volledig gelogde dagen − helling gewicht × 7700). Alleen een voorstel; wordt niet automatisch toegepast.
+- Adaptief: `/api/calories/calibration` (`_calibration`) vergelijkt de ruwe schatting (`burned_raw`/`tdee_raw`) met de gewichtstrend (intake op volledige dagen − helling × 7700). `refresh_tdee_factor()` slaat dat hooguit wekelijks op als `user_profiles.tdee_factor` (begrensd 0,75–1,15; scheduled sync of bij openen van Calories). `day_energy(..., factor)` vermenigvuldigt `tdee`/`burned_now` ermee; uit te zetten in Settings (`adaptive_tdee`).
+- Macrodoelen: `GET /api/profile` → `macro_goals` (eiwit standaard 2 g/kg, vet 0,8 g/kg, koolhydraten = rest van `calorie_goal`); aanpasbaar in Settings.
+- Voeding met foto: `POST /api/nutrition/log-ai` met optioneel `image` (data URL); tekst-hoeveelheden gaan vóór de foto.
 
 ## Claude
 - Chat + snelle voedingslog: `claude-sonnet-5-5`, effort `low`, web search `web_search_20260209`, server-side fallback; `pause_turn` wordt doorgezet (`_create_until_done` in `claude.py`).

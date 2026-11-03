@@ -166,6 +166,13 @@ class UserProfile(db.Model):
     avg_daily_steps = db.Column(db.Integer, default=10000)
     calorie_goal = db.Column(db.Integer)
     goals = db.Column(db.Text)
+    # Burn estimate corrected by the weight trend (services/energy.py); null = on
+    adaptive_tdee = db.Column(db.Boolean)
+    tdee_factor = db.Column(db.Float)
+    tdee_factor_updated = db.Column(db.Date)
+    # Macro goals; carbs are what's left of calorie_goal. Null = defaults from body weight
+    protein_goal_g = db.Column(db.Integer)
+    fat_goal_g = db.Column(db.Integer)
     updated_at = db.Column(db.DateTime(timezone=True), default=_now, onupdate=_now)
 
     def to_dict(self):
@@ -176,6 +183,11 @@ class UserProfile(db.Model):
             "avg_daily_steps": self.avg_daily_steps,
             "calorie_goal": self.calorie_goal,
             "goals": self.goals,
+            "adaptive_tdee": self.adaptive_tdee is not False,
+            "tdee_factor": self.tdee_factor,
+            "tdee_factor_updated": self.tdee_factor_updated.isoformat() if self.tdee_factor_updated else None,
+            "protein_goal_g": self.protein_goal_g,
+            "fat_goal_g": self.fat_goal_g,
         }
 
 

@@ -187,4 +187,6 @@ def scheduled_sync():
     fresh data. Deliberately no Claude call here — advice is generated on request only."""
     user = _ensure_user()
     _sync_sources(user.id)
+    from app.routes.profile import refresh_tdee_factor
+    refresh_tdee_factor()  # weekly at most
     return jsonify({"status": "ok"})

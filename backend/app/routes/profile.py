@@ -5,7 +5,7 @@ from app import db
 from app.models import WeightLog, Workout, NutritionLog, UserProfile
 from app.routes.chat import _ensure_user
 from app.services.logging_status import is_complete, auto_complete, overrides
-from app.services.energy import day_energy, energy_for, local_today, steps_by_day, typical_steps, TYPICAL_STEPS_WINDOW_DAYS
+from app.services.energy import current_factor, day_energy, energy_for, local_today, steps_by_day, typical_steps, TYPICAL_STEPS_WINDOW_DAYS
 
 profile_bp = Blueprint("profile", __name__)
 
@@ -24,12 +24,31 @@ def _get_profile():
     return profile
 
 
-@profile_bp.route("/profile", methods=["GET"])
-def get_profile():
-    data = _get_profile().to_dict()
+PROTEIN_G_PER_KG = 2.0
+FAT_G_PER_KG = 0.8
+
+
+def _macro_goals(profile) -> dict:
+    """Protein and fat from the profile or body weight; carbs fill the rest of the calorie goal."""
+    weight = _latest_weight()
+    kcal = profile.calorie_goal or DEFAULT_CALORIE_GOAL
+    protein = profile.protein_goal_g or round(PROTEIN_G_PER_KG * weight)
+    fat = profile.fat_goal_g or round(FAT_G_PER_KG * weight)
+    carbs = max(0, round((kcal - 4 * protein - 9 * fat) / 4))
+    return {"calories": kcal, "protein_g": protein, "fat_g": fat, "carbs_g": carbs}
+
+
+def _profile_response(profile):
+    data = profile.to_dict()
     if data["calorie_goal"] is None:
         data["calorie_goal"] = DEFAULT_CALORIE_GOAL
-    return jsonify(data)
+    data["macro_goals"] = _macro_goals(profile)
+    return data
+
+
+@profile_bp.route("/profile", methods=["GET"])
+def get_profile():
+    return jsonify(_profile_response(_get_profile()))
 
 
 @profile_bp.route("/profile", methods=["PUT"])
@@ -44,13 +63,29 @@ def update_profile():
         if not 800 <= goal <= 6000:
             return jsonify({"error": "calorie_goal must be between 800 and 6000"}), 400
         profile.calorie_goal = goal
+    if "adaptive_tdee" in body:
+        profile.adaptive_tdee = bool(body["adaptive_tdee"])
+    for field, (lo, hi) in {"protein_goal_g": (30, 400), "fat_goal_g": (20, 300)}.items():
+        if field in body:
+            if body[field] in (None, ""):
+                setattr(profile, field, None)
+                continue
+            try:
+                value = int(body[field])
+            except (TypeError, ValueError):
+                return jsonify({"error": f"{field} must be a number"}), 400
+            if not lo <= value <= hi:
+                return jsonify({"error": f"{field} must be between {lo} and {hi}"}), 400
+            setattr(profile, field, value)
     if "goals" in body:
         goals = (body["goals"] or "").strip()
         if len(goals) > 2000:
             return jsonify({"error": "goals must be at most 2000 characters"}), 400
         profile.goals = goals or None
     db.session.commit()
-    return jsonify(profile.to_dict())
+    if "adaptive_tdee" in body:
+        refresh_tdee_factor(force=True)
+    return jsonify(_profile_response(profile))
 
 
 def _latest_weight() -> float:
@@ -110,12 +145,14 @@ def _calorie_days(days: int) -> list[dict]:
         consumed_by_day[n.date] = consumed_by_day.get(n.date, 0) + (n.calories or 0)
 
     manual = overrides(USER_ID, start, today)
+    factor = current_factor(USER_ID)
     result = []
     current = start + timedelta(days=1)
     while current <= today:
         energy = day_energy(
             current, weight_kg, known_steps.get(current),
             typical_steps(USER_ID, current, known_steps), workouts_by_day.get(current, []),
+            factor=factor,
         )
         burned = energy["tdee"]  # full-day value (for today: the estimate)
         consumed = round(consumed_by_day.get(current, 0))
@@ -123,6 +160,7 @@ def _calorie_days(days: int) -> list[dict]:
         result.append({
             "date": current.isoformat(),
             "burned": burned,
+            "burned_raw": energy["tdee_raw"],
             "consumed": consumed,
             # Incomplete days have no meaningful balance: they'd show a fake deficit
             "complete": complete,
@@ -145,13 +183,15 @@ MIN_WEIGHINS = 6
 KCAL_PER_KG = 7700
 
 
-@profile_bp.route("/calories/calibration", methods=["GET"])
-def calories_calibration():
-    """Check the burned estimate against reality: the weight trend says what the real
+FACTOR_MIN, FACTOR_MAX = 0.75, 1.15  # never let one odd month swing the estimate wildly
+FACTOR_REFRESH_DAYS = 7
+
+
+def _calibration(days: int = CALIBRATION_DAYS) -> dict:
+    """Check the burn estimate against reality: the weight trend says what the real
     average balance was, so real burn = average intake - weight change x 7700 kcal/kg.
     Only fully logged days count for intake (services/logging_status.py); today is left
-    out (still being logged)."""
-    days = int(request.args.get("days", CALIBRATION_DAYS))
+    out (still being logged). Compares against the unscaled estimate (burned_raw)."""
     today = local_today()
     since = today - timedelta(days=days)
     rows = [r for r in _calorie_days(days) if r["date"] < today.isoformat()]
@@ -163,7 +203,7 @@ def calories_calibration():
     result = {"days": days, "logged_days": len(logged), "weigh_ins": len(weights),
               "min_logged_days": MIN_LOGGED_DAYS, "min_weigh_ins": MIN_WEIGHINS}
     if len(logged) < MIN_LOGGED_DAYS or len(weights) < MIN_WEIGHINS:
-        return jsonify({**result, "ready": False})
+        return {**result, "ready": False}
 
     # Least-squares slope of weight over time (kg/day): far less noisy than first vs last
     xs = [(w.date - since).days for w in weights]
@@ -173,9 +213,9 @@ def calories_calibration():
     slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / var if var else 0
 
     intake = sum(r["consumed"] for r in logged) / len(logged)
-    estimated = sum(r["burned"] for r in logged) / len(logged)
+    estimated = sum(r["burned_raw"] for r in logged) / len(logged)
     measured = intake - slope * KCAL_PER_KG
-    return jsonify({
+    return {
         **result,
         "ready": True,
         "avg_intake": round(intake),
@@ -183,4 +223,31 @@ def calories_calibration():
         "avg_burned_measured": round(measured),
         "weight_change_kg_per_week": round(slope * 7, 2),
         "factor": round(measured / estimated, 3),
+    }
+
+
+def refresh_tdee_factor(force: bool = False):
+    """Store the weight-trend correction (at most weekly), used by every burn number."""
+    profile = _get_profile()
+    if profile.adaptive_tdee is False:
+        return
+    if not force and profile.tdee_factor_updated and (local_today() - profile.tdee_factor_updated).days < FACTOR_REFRESH_DAYS:
+        return
+    cal = _calibration()
+    if not cal["ready"]:
+        return
+    profile.tdee_factor = round(min(FACTOR_MAX, max(FACTOR_MIN, cal["factor"])), 3)
+    profile.tdee_factor_updated = local_today()
+    db.session.commit()
+
+
+@profile_bp.route("/calories/calibration", methods=["GET"])
+def calories_calibration():
+    refresh_tdee_factor()
+    profile = _get_profile()
+    return jsonify({
+        **_calibration(int(request.args.get("days", CALIBRATION_DAYS))),
+        "adaptive": profile.adaptive_tdee is not False,
+        "applied_factor": current_factor(USER_ID),
+        "applied_since": profile.tdee_factor_updated.isoformat() if profile.tdee_factor_updated else None,
     })
