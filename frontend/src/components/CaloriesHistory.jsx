@@ -138,7 +138,7 @@ function BurnSum({ b, burned }) {
     // Steps inside Garmin workouts are already in the workout kcal, so they're left out here
     [`Steps (${Math.max(0, b.steps - (b.workout_steps || 0)).toLocaleString()}${b.steps_source === "estimate" ? ", est." : ""}${b.workout_steps ? `, excl. ${b.workout_steps.toLocaleString()} in workouts` : ""})`, b.step_kcal],
     // One line per workout (Garmin/Hevy/Whoop title); older responses only have the total
-    ...(b.workouts?.length ? b.workouts.map(w => [w.title || "Workout", w.kcal]) : [["Workouts", b.workout_kcal]]),
+    ...(b.workouts?.length ? b.workouts.map(w => [w.title || "Workout", w.kcal]) : b.workout_kcal ? [["Workouts", b.workout_kcal]] : []),
   ];
   if (b.adaptive) rows.push(["Weight-trend correction", b.adaptive]);
   return (
