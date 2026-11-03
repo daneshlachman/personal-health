@@ -192,20 +192,12 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
             <img src={photoOf(left)} alt="" draggable={false} className="w-full h-full object-contain" style={leftZoom.style} />
             <div className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/40 text-white">BEFORE</div>
           </div>
-          <div className="flex justify-center items-center gap-4 py-2 bg-white border-t border-gray-100 shrink-0">
-            <button onClick={() => leftZoom.zoomBy(1 / 1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">−</button>
-            <button onClick={() => leftZoom.zoomBy(1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">+</button>
-          </div>
         </div>
         <div className="w-px bg-gray-200 shrink-0" />
         <div className="flex-1 flex flex-col overflow-hidden">
           <div ref={rightZoom.ref} className="flex-1 overflow-hidden relative bg-gray-50" style={{ touchAction: "none" }} onClick={() => setActiveSide("right")}>
             <img src={photoOf(right)} alt="" draggable={false} className="w-full h-full object-contain" style={rightZoom.style} />
             <div className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/40 text-white">AFTER</div>
-          </div>
-          <div className="flex justify-center items-center gap-4 py-2 bg-white border-t border-gray-100 shrink-0">
-            <button onClick={() => rightZoom.zoomBy(1 / 1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">−</button>
-            <button onClick={() => rightZoom.zoomBy(1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">+</button>
           </div>
         </div>
       </div>
