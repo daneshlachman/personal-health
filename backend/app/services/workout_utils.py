@@ -62,11 +62,11 @@ def dedupe_workouts(workouts: list) -> list:
 
 def calc_workout_kcal(workouts: list, weight_kg: float,
                       resting_kcal_per_min: float = 0) -> tuple[int, list[str]]:
-    """Sum workout calories, deduplicating overlapping sources (Garmin > Whoop > Hevy).
-    Whoop beats Hevy here because it's measured (HR), Hevy is only a MET estimate.
+    """Sum workout calories, deduplicating overlapping sources (Garmin > Hevy > Whoop).
+    Whoop's HR-based kcal clearly underestimate strength training, so Hevy's MET estimate wins.
     Device kcal are gross; the resting part is subtracted because BMR + TEF already
     cover the whole day. Returns (total_kcal, list of description strings for context)."""
-    SOURCE_PRIORITY = {"garmin": 0, "whoop": 1, "hevy": 2}
+    SOURCE_PRIORITY = {"garmin": 0, "hevy": 1, "whoop": 2}
 
     entries = []
     for w in workouts:
@@ -77,7 +77,7 @@ def calc_workout_kcal(workouts: list, weight_kg: float,
             cal = raw["calories"]
             note = f"{w.title} {cal} kcal (Garmin)"
         elif w.source == "hevy" and w.duration_minutes:
-            cal = round(5 * weight_kg * (w.duration_minutes / 60))
+            cal = round(4 * weight_kg * (w.duration_minutes / 60))  # ~4 MET incl. rest between sets
             note = f"{w.title} ~{cal} kcal (Hevy estimate)"
         elif w.source == "whoop":
             kj = (raw.get("score") or {}).get("kilojoule")
