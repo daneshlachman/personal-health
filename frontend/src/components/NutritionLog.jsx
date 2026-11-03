@@ -405,10 +405,15 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   // Macro changed → recalculate kcal
   const onMacro = (field, val, setter) => {
     setter(val);
+    // Adjust kcal by the change only (4 kcal/g protein and carbs, 9 kcal/g fat), so the
+    // logged kcal isn't replaced by a recount of all macros
     const p = field === "p" ? num(val) : num(protein);
     const c = field === "c" ? num(val) : num(carbs);
     const f = field === "f" ? num(val) : num(fat);
-    const k = p * 4 + c * 4 + f * 9;
+    const prev = field === "p" ? num(protein) : field === "c" ? num(carbs) : num(fat);
+    // Continue from the unrounded value unless the kcal field was typed over since
+    const curK = Math.round(kcalBase.current.kcal) === Math.round(num(kcal)) ? kcalBase.current.kcal : num(kcal);
+    const k = Math.max(0, curK + (num(val) - prev) * (field === "f" ? 9 : 4));
     kcalBase.current = { kcal: k, p, c, f };
     setKcal(String(Math.round(k)));
   };
