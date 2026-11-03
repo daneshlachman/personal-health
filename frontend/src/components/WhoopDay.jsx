@@ -386,7 +386,7 @@ const fmtDay = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-US", 
 
 export default function WhoopDay({ initialDate, initialTab = "recovery", onBack, onLongTerm }) {
   const [date, setDate] = useState(initialDate || todayISO());
-  const [tab, setTab] = useState(initialTab);
+  const tab = initialTab;  // opened from the recovery or the sleep ring
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -414,15 +414,6 @@ export default function WhoopDay({ initialDate, initialTab = "recovery", onBack,
             <button onClick={() => setDate(shiftDay(date, 1))} disabled={isToday} className="w-8 h-8 flex items-center justify-center disabled:opacity-20" style={{ color: C.dim, fontSize: 20 }}>›</button>
           </div>
           <div className="w-10" />
-        </div>
-
-        <div className="flex rounded-xl p-1" style={{ background: C.card }}>
-          {[["recovery", "Recovery"], ["sleep", "Sleep"]].map(([value, text]) => (
-            <button key={value} onClick={() => setTab(value)} className="flex-1 rounded-lg py-1.5"
-              style={{ ...caps, fontSize: 11, fontWeight: 700, color: tab === value ? C.text : C.dim, background: tab === value ? C.line : "transparent" }}>
-              {text}
-            </button>
-          ))}
         </div>
 
         {loading && !data ? (
