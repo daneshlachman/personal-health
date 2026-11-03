@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { API } from "../utils/api";
 import { toDecimal } from "../utils/decimal";
 import { invalidateCachePrefix } from "../utils/cache";
+import { usePinchZoom } from "../utils/usePinchZoom";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine,
@@ -155,25 +155,19 @@ function WeightModal({ entry, onClose, onSaved }) {
 }
 
 function PhotoModal({ src, onClose }) {
+  const zoom = usePinchZoom();
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex justify-end px-4 pt-12 pb-2 shrink-0">
         <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white text-xl">×</button>
       </div>
-      <TransformWrapper minScale={1} maxScale={5} centerOnInit>
-        {({ zoomIn, zoomOut }) => (
-          <>
-            <TransformComponent wrapperStyle={{ flex: 1, width: "100%" }}
-              contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <img src={src} alt="" style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain" }} />
-            </TransformComponent>
-            <div className="flex justify-center gap-6 py-4 shrink-0">
-              <button onClick={() => zoomOut()} className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center text-2xl font-bold">−</button>
-              <button onClick={() => zoomIn()} className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center text-2xl font-bold">+</button>
-            </div>
-          </>
-        )}
-      </TransformWrapper>
+      <div ref={zoom.ref} className="flex-1 overflow-hidden flex items-center justify-center" style={{ touchAction: "none" }}>
+        <img src={src} alt="" draggable={false} style={{ ...zoom.style, maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+      </div>
+      <div className="flex justify-center gap-6 py-4 shrink-0">
+        <button onClick={() => zoom.zoomBy(1 / 1.5)} className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center text-2xl font-bold">−</button>
+        <button onClick={() => zoom.zoomBy(1.5)} className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center text-2xl font-bold">+</button>
+      </div>
     </div>
   );
 }
@@ -182,8 +176,8 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
   const [left, setLeft] = useState(initialA);
   const [right, setRight] = useState(initialB);
   const [activeSide, setActiveSide] = useState("right");
-  const [leftScale, setLeftScale] = useState(1);
-  const [rightScale, setRightScale] = useState(1);
+  const leftZoom = usePinchZoom();
+  const rightZoom = usePinchZoom();
 
   const fmtDate = (iso) => {
     const d = new Date(iso + "T12:00:00");
@@ -191,8 +185,8 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
   };
 
   const pickThumb = (p) => {
-    if (activeSide === "left") setLeft(p);
-    else setRight(p);
+    if (activeSide === "left") { setLeft(p); leftZoom.reset(); }
+    else { setRight(p); rightZoom.reset(); }
   };
 
   const diff = right && left ? (right.weight_kg - left.weight_kg).toFixed(1) : null;
@@ -210,26 +204,24 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
       {/* Photos */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden relative bg-gray-50" onClick={() => setActiveSide("left")}>
-            <img src={photoOf(left)} alt="" className="w-full h-full object-contain"
-              style={{ transform: `scale(${leftScale})`, transformOrigin: "center center", transition: "transform 0.2s" }} />
+          <div ref={leftZoom.ref} className="flex-1 overflow-hidden relative bg-gray-50" style={{ touchAction: "none" }} onClick={() => setActiveSide("left")}>
+            <img src={photoOf(left)} alt="" draggable={false} className="w-full h-full object-contain" style={leftZoom.style} />
             <div className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/40 text-white">BEFORE</div>
           </div>
           <div className="flex justify-center items-center gap-4 py-2 bg-white border-t border-gray-100 shrink-0">
-            <button onClick={() => setLeftScale(s => Math.max(1, +(s - 0.5).toFixed(1)))} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">−</button>
-            <button onClick={() => setLeftScale(s => Math.min(4, +(s + 0.5).toFixed(1)))} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">+</button>
+            <button onClick={() => leftZoom.zoomBy(1 / 1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">−</button>
+            <button onClick={() => leftZoom.zoomBy(1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">+</button>
           </div>
         </div>
         <div className="w-px bg-gray-200 shrink-0" />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden relative bg-gray-50" onClick={() => setActiveSide("right")}>
-            <img src={photoOf(right)} alt="" className="w-full h-full object-contain"
-              style={{ transform: `scale(${rightScale})`, transformOrigin: "center center", transition: "transform 0.2s" }} />
+          <div ref={rightZoom.ref} className="flex-1 overflow-hidden relative bg-gray-50" style={{ touchAction: "none" }} onClick={() => setActiveSide("right")}>
+            <img src={photoOf(right)} alt="" draggable={false} className="w-full h-full object-contain" style={rightZoom.style} />
             <div className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/40 text-white">AFTER</div>
           </div>
           <div className="flex justify-center items-center gap-4 py-2 bg-white border-t border-gray-100 shrink-0">
-            <button onClick={() => setRightScale(s => Math.max(1, +(s - 0.5).toFixed(1)))} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">−</button>
-            <button onClick={() => setRightScale(s => Math.min(4, +(s + 0.5).toFixed(1)))} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">+</button>
+            <button onClick={() => rightZoom.zoomBy(1 / 1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">−</button>
+            <button onClick={() => rightZoom.zoomBy(1.5)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xl font-bold leading-none">+</button>
           </div>
         </div>
       </div>
