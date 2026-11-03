@@ -187,7 +187,6 @@ function FoodSearchModal({ meal, date, onClose, onSaved }) {
         {!selected ? (
           <>
             <input
-              autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search food…"
