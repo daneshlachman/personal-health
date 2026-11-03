@@ -260,7 +260,8 @@ def refresh_tdee_factor(force: bool = False):
 def _intake_estimate(days: int = CALIBRATION_DAYS) -> dict:
     """What was eaten according to the scale: average intake = average burn + weight trend
     x 7700 kcal/kg, over all days (logged or not). Minus what the fully logged days account
-    for, the rest is what the unlogged days must have averaged. Today is left out."""
+    for, the rest is what the unlogged days must have averaged. Today is left out. Uses the
+    unscaled burn: the adaptive factor is itself derived from the weight trend."""
     today = local_today()
     since = today - timedelta(days=days)
     rows = [r for r in _calorie_days(days) if r["date"] < today.isoformat()]
@@ -276,12 +277,12 @@ def _intake_estimate(days: int = CALIBRATION_DAYS) -> dict:
         return {**result, "ready": False}
 
     slope = _weight_slope(weights, since)
-    burned = sum(r["burned"] for r in rows) / len(rows)
+    burned = sum(r["burned_raw"] for r in rows) / len(rows)
     intake = burned + slope * KCAL_PER_KG
     logged_intake = sum(r["consumed"] for r in logged) / len(logged) if logged else None
     unlogged_intake = None
     if unlogged:
-        unlogged_burned = sum(r["burned"] for r in unlogged) / len(unlogged)
+        unlogged_burned = sum(r["burned_raw"] for r in unlogged) / len(unlogged)
         total_unlogged = intake * len(rows) - sum(r["consumed"] for r in logged)
         unlogged_intake = total_unlogged / len(unlogged)
     return {
