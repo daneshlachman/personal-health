@@ -19,8 +19,6 @@ function KeyPrompt({ onSaved }) {
     setApiKey(value);
     onSaved();
   };
-  if (needsKey) return <KeyPrompt onSaved={() => { setNeedsKey(false); setResumeKey((k) => k + 1); }} />;
-
   return (
     <div className="fixed inset-0 z-[60] bg-gray-50 flex items-center justify-center p-6">
       <div className="bg-white rounded-2xl shadow-sm p-5 w-full max-w-sm space-y-3">
@@ -80,6 +78,8 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
+
+  if (needsKey) return <KeyPrompt onSaved={() => { setNeedsKey(false); setResumeKey((k) => k + 1); }} />;
 
   return (
     <div className="flex flex-col bg-gray-50" style={{ height: "100svh" }}>
