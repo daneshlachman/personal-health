@@ -57,7 +57,9 @@ def dedupe_workouts(workouts: list) -> list:
         if not shadowed:
             accepted.append((priority, start, end, w))
 
-    return [w for _, _, _, w in accepted]
+    # Keep the input order (e.g. newest first)
+    keep = {id(w) for _, _, _, w in accepted}
+    return [w for w in workouts if id(w) in keep]
 
 
 def calc_workout_kcal(workouts: list, weight_kg: float,

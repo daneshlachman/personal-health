@@ -406,22 +406,9 @@ export default function WorkoutLog() {
     }
   };
 
-  // Priority: Hevy > Garmin > Whoop
-  const hevyDates = new Set(workouts.filter((w) => w.source === "hevy").map((w) => w.date));
-  const garminDates = new Set(workouts.filter((w) => w.source === "garmin").map((w) => w.date));
-
-  const isWhoop = (w) => w.source === "whoop";
-  const isStrength = (w) => STRENGTH_NAMES.has((w.raw_json?.sport_name || w.title || "").toLowerCase());
-
+  // Already deduplicated by the backend (one entry per session: Garmin > Hevy > Whoop)
   const workoutsByDate = workouts.reduce((acc, w) => {
-    // Whoop strength → skip if Hevy or Garmin exists that day
-    if (isWhoop(w) && isStrength(w) && (hevyDates.has(w.date) || garminDates.has(w.date))) return acc;
-    // Whoop cardio → skip if Garmin exists that day
-    if (isWhoop(w) && !isStrength(w) && garminDates.has(w.date)) return acc;
-    // Garmin strength → skip if Hevy exists that day
-    if (w.source === "garmin" && isStrength(w) && hevyDates.has(w.date)) return acc;
-    const d = w.date;
-    acc[d] = acc[d] ? [...acc[d], w] : [w];
+    (acc[w.date] ||= []).push(w);
     return acc;
   }, {});
 

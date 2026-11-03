@@ -71,11 +71,14 @@ function compressImage(file, maxPx = 1800, quality = 0.88) {
 
 const todayISO = new Date().toISOString().slice(0, 10);
 
+// Photos are served separately so the weight list stays small
+const photoOf = (r) => (r?.photo_url ? `${API}${r.photo_url}` : null);
+
 function WeightModal({ entry, onClose, onSaved }) {
   const isNew = !entry;
   const [kg, setKg] = useState(entry ? String(entry.weight_kg) : "");
   const [date, setDate] = useState(entry ? entry.date : todayISO);
-  const [photo, setPhoto] = useState(entry?.photo_data || null);
+  const [photo, setPhoto] = useState(photoOf(entry));
   const [saving, setSaving] = useState(false);
   const fileRef = useRef();
 
@@ -94,7 +97,8 @@ function WeightModal({ entry, onClose, onSaved }) {
     fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weight_kg: w, date, photo_data: photo }),
+      // Only send the photo when it changed: a new data URL, or null when removed
+      body: JSON.stringify({ weight_kg: w, date, ...(photo !== photoOf(entry) && { photo_data: photo }) }),
     })
       .then(r => r.json())
       .then(result => { onSaved(result, isNew); onClose(); })
@@ -207,7 +211,7 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden relative bg-gray-50" onClick={() => setActiveSide("left")}>
-            <img src={left.photo_data} alt="" className="w-full h-full object-contain"
+            <img src={photoOf(left)} alt="" className="w-full h-full object-contain"
               style={{ transform: `scale(${leftScale})`, transformOrigin: "center center", transition: "transform 0.2s" }} />
             <div className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/40 text-white">BEFORE</div>
           </div>
@@ -219,7 +223,7 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
         <div className="w-px bg-gray-200 shrink-0" />
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden relative bg-gray-50" onClick={() => setActiveSide("right")}>
-            <img src={right.photo_data} alt="" className="w-full h-full object-contain"
+            <img src={photoOf(right)} alt="" className="w-full h-full object-contain"
               style={{ transform: `scale(${rightScale})`, transformOrigin: "center center", transition: "transform 0.2s" }} />
             <div className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/40 text-white">AFTER</div>
           </div>
@@ -260,7 +264,7 @@ function CompareScreen({ allPhotos, initialA, initialB, onClose }) {
               <button key={p.id} onClick={() => pickThumb(p)}
                 className="shrink-0 relative rounded-lg overflow-hidden transition-all"
                 style={{ width: 64, height: 64, opacity: active ? 1 : 0.6 }}>
-                <img src={p.photo_data} alt="" className="w-full h-full object-cover" />
+                <img src={photoOf(p)} alt="" className="w-full h-full object-cover" />
                 {active && <div className="absolute inset-0 ring-2 ring-white ring-inset rounded-lg" />}
                 <div className="absolute bottom-0 inset-x-0 bg-black/50 py-0.5 text-center">
                   <p className="text-white text-[9px] font-bold leading-none">{p.weight_kg}kg</p>
@@ -407,7 +411,7 @@ export default function WeightHistory({ onBack }) {
 
       {/* Photo gallery */}
       {(() => {
-        const photos = [...rows].reverse().filter(r => r.photo_data);
+        const photos = [...rows].reverse().filter(r => r.photo_url);
         if (photos.length === 0) return null;
         const handlePhotoTap = (r) => {
           if (!compareA) { setCompareA(r); return; }
@@ -433,7 +437,7 @@ export default function WeightHistory({ onBack }) {
                     className="relative rounded-xl overflow-hidden shrink-0"
                     style={{ width: 110, height: 110 }}
                   >
-                    <img src={r.photo_data} alt=""
+                    <img src={photoOf(r)} alt=""
                       className="w-full h-full object-contain" />
                     {isA && <div className="absolute inset-0 bg-brand-500/25 ring-2 ring-brand-500 ring-inset rounded-xl" />}
                     <div className="absolute bottom-0 inset-x-0 bg-black/50 py-1 px-1.5 rounded-b-xl">
@@ -465,9 +469,9 @@ export default function WeightHistory({ onBack }) {
               const label = `${d} ${MONTH_NAMES[m - 1]}`;
               return (
                 <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
-                  {r.photo_data ? (
-                    <button onClick={() => setPhotoSrc(r.photo_data)} className="shrink-0">
-                      <img src={r.photo_data} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                  {r.photo_url ? (
+                    <button onClick={() => setPhotoSrc(photoOf(r))} className="shrink-0">
+                      <img src={photoOf(r)} alt="" className="w-10 h-10 rounded-lg object-cover" />
                     </button>
                   ) : (
                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 text-lg shrink-0">⚖</div>
@@ -489,7 +493,7 @@ export default function WeightHistory({ onBack }) {
       {photoSrc && <PhotoModal src={photoSrc} onClose={() => setPhotoSrc(null)} />}
       {compareOpen && compareA && compareB && (
         <CompareScreen
-          allPhotos={[...rows].reverse().filter(r => r.photo_data)}
+          allPhotos={[...rows].reverse().filter(r => r.photo_url)}
           initialA={compareA}
           initialB={compareB}
           onClose={() => { setCompareOpen(false); setCompareA(null); setCompareB(null); }}

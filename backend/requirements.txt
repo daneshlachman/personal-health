@@ -4,7 +4,7 @@ sqlalchemy==2.0.36
 flask-migrate==4.0.7
 flask-cors==5.0.0
 psycopg2-binary==2.9.9
-anthropic==0.40.0
+anthropic==1.17.0
 gunicorn==23.0.0
 python-dotenv==1.0.1
 requests==2.32.3

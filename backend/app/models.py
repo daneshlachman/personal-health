@@ -1,5 +1,7 @@
 import uuid
 from datetime import datetime, timezone
+from sqlalchemy import func
+from sqlalchemy.orm import column_property
 from app import db
 
 
@@ -32,7 +34,8 @@ class WeightLog(db.Model):
     date = db.Column(db.Date, nullable=False)
     weight_kg = db.Column(db.Float, nullable=False)
     source = db.Column(db.String(50))  # 'whoop', 'manual', 'import'
-    photo_data = db.Column(db.Text)    # base64 encoded image
+    # base64 data URL; deferred so lists don't load it — served via /weight/<id>/photo
+    photo_data = db.deferred(db.Column(db.Text))
     created_at = db.Column(db.DateTime(timezone=True), default=_now)
 
     def to_dict(self):
@@ -41,9 +44,13 @@ class WeightLog(db.Model):
             "date": self.date.isoformat(),
             "weight_kg": self.weight_kg,
             "source": self.source,
-            "photo_data": self.photo_data,
+            "photo_url": f"/api/weight/{self.id}/photo?v={self.photo_hash}" if self.photo_hash else None,
             "created_at": self.created_at.isoformat(),
         }
+
+
+# Short fingerprint for cache-busting photo URLs, computed in SQL so the photo itself stays unloaded
+WeightLog.photo_hash = column_property(func.left(func.md5(WeightLog.__table__.c.photo_data), 12))
 
 
 class NutritionLog(db.Model):

@@ -70,6 +70,29 @@ function FoodSearchModal({ meal, date, onClose, onSaved }) {
   const [selected, setSelected] = useState(null);
   const [grams, setGrams] = useState("100");
   const [saving, setSaving] = useState(false);
+  const [recent, setRecent] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/nutrition/frequent?meal=${meal}`)
+      .then((r) => r.json())
+      .then(setRecent)
+      .catch(console.error);
+  }, [meal]);
+
+  // One tap: log the same item again, with the macros of its last log
+  const relog = (item) => {
+    setSaving(true);
+    const { description, calories, protein_g, carbs_g, fat_g } = item;
+    fetch(`${API}/api/nutrition`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, meal_type: meal, description, calories, protein_g, carbs_g, fat_g }),
+    })
+      .then((r) => r.json())
+      .then((entry) => { onSaved(entry); onClose(); })
+      .catch(console.error)
+      .finally(() => setSaving(false));
+  };
 
   useEffect(() => {
     if (query.length < 2) { setResults([]); return; }
@@ -138,6 +161,31 @@ function FoodSearchModal({ meal, date, onClose, onSaved }) {
               placeholder="Search food…"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
+            {query.length < 2 && recent.length > 0 && (
+              <>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-4 mb-1 px-1">Recent &amp; frequent · tap to add</p>
+                <ul className="space-y-0.5 max-h-72 overflow-y-auto">
+                  {recent.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => relog(item)}
+                        disabled={saving}
+                        className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-3 disabled:opacity-40"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 leading-tight truncate">{item.description}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {Math.round(item.calories ?? 0)} kcal · {Math.round(item.protein_g ?? 0)}g protein
+                          </p>
+                        </div>
+                        {item.count > 1 && <span className="text-[10px] text-gray-400 shrink-0">{item.count}×</span>}
+                        <span className="text-brand-500 text-lg leading-none shrink-0">+</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             {searching && <p className="text-xs text-gray-400 mt-3 text-center">Searching…</p>}
             {!searching && query.length >= 2 && results.length === 0 && (
               <p className="text-xs text-gray-400 mt-3 text-center">No results found.</p>

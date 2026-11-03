@@ -1,5 +1,6 @@
+import base64
 from datetime import date, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from app import db
 from app.models import WeightLog
 from app.routes.chat import _ensure_user
@@ -21,6 +22,22 @@ def get_weight():
         .all()
     )
     return jsonify([l.to_dict() for l in logs])
+
+
+@weight_bp.route("/weight/<log_id>/photo", methods=["GET"])
+def get_weight_photo(log_id):
+    """The photo as a real image, so lists stay small and the browser can cache it.
+    The URL carries a content hash (?v=), so it can be cached forever."""
+    user = _ensure_user()
+    log = WeightLog.query.filter_by(id=log_id, user_id=user.id).first_or_404()
+    if not log.photo_data:
+        return "", 404
+    header, _, b64 = log.photo_data.partition(",")
+    if not b64:  # plain base64 without a data: prefix
+        header, b64 = "", log.photo_data
+    mimetype = header[5:].split(";")[0] if header.startswith("data:") else "image/jpeg"
+    return Response(base64.b64decode(b64), mimetype=mimetype,
+                    headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
 
 @weight_bp.route("/weight", methods=["POST"])

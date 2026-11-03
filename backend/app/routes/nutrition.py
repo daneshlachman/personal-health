@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import NutritionLog
@@ -24,6 +24,35 @@ def get_nutrition():
         .all()
     )
     return jsonify([l.to_dict() for l in logs])
+
+
+FREQUENT_WINDOW_DAYS = 21
+FREQUENT_LIMIT = 12
+
+
+@nutrition_bp.route("/nutrition/frequent", methods=["GET"])
+def frequent_foods():
+    """Items logged in the last weeks, for one-tap re-logging. Same description = same item;
+    the most recent log supplies the macros. Items eaten at `meal` rank first."""
+    user = _ensure_user()
+    meal = request.args.get("meal")
+    since = local_today() - timedelta(days=FREQUENT_WINDOW_DAYS)
+    logs = (
+        NutritionLog.query
+        .filter(NutritionLog.user_id == user.id, NutritionLog.date >= since)
+        .order_by(NutritionLog.date.desc(), NutritionLog.created_at.desc())
+        .all()
+    )
+    items: dict = {}
+    for l in logs:
+        key = " ".join(l.description.lower().split())
+        item = items.get(key)
+        if item is None:
+            item = items[key] = {**l.to_dict(), "count": 0, "meal_count": 0, "last_date": l.date.isoformat()}
+        item["count"] += 1
+        item["meal_count"] += l.meal_type == meal
+    ranked = sorted(items.values(), key=lambda i: (i["meal_count"], i["count"], i["last_date"]), reverse=True)
+    return jsonify(ranked[:FREQUENT_LIMIT])
 
 
 @nutrition_bp.route("/nutrition", methods=["POST"])

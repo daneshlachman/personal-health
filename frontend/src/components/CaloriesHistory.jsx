@@ -26,12 +26,25 @@ function KPI({ label, value, sub, color }) {
   );
 }
 
-function CalendarHeatmap({ data }) {
+// Days of history needed to cover the 1st of the given month
+function daysSince(year, month) {
+  return Math.ceil((new Date(todayISO + "T12:00:00") - new Date(year, month, 1, 12)) / 86400000) + 1;
+}
+
+function CalendarHeatmap({ data, onNeedDays }) {
   const byDate = Object.fromEntries(data.map(d => [d.date, d]));
   const today = new Date(todayISO + "T12:00:00");
-  const year = today.getFullYear();
-  const month = today.getMonth();
+  const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const { year, month } = view;
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const [selected, setSelected] = useState(null);
+
+  const shiftMonth = (n) => {
+    const d = new Date(year, month + n, 1);
+    setView({ year: d.getFullYear(), month: d.getMonth() });
+    setSelected(null);
+    onNeedDays(daysSince(d.getFullYear(), d.getMonth()));
+  };
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = (firstDay + 6) % 7;
@@ -49,9 +62,13 @@ function CalendarHeatmap({ data }) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-gray-800">
-          {MONTH_NAMES[month]} {year}
-        </span>
+        <div className="flex items-center gap-1">
+          <button onClick={() => shiftMonth(-1)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500">‹</button>
+          <span className="text-sm font-semibold text-gray-800 w-20 text-center">
+            {MONTH_NAMES[month]} {year}
+          </span>
+          <button onClick={() => shiftMonth(1)} disabled={isCurrentMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 disabled:opacity-20">›</button>
+        </div>
         <div className="flex items-center gap-2 text-[10px] text-gray-400">
           <span className="w-3 h-3 rounded-sm bg-green-500 inline-block" /> Deficit
           <span className="w-3 h-3 rounded-sm bg-orange-500 inline-block ml-1" /> Surplus
@@ -111,6 +128,58 @@ function CalendarHeatmap({ data }) {
   );
 }
 
+// Estimated burn vs what the weight trend says was really burned
+function CalibrationCard() {
+  const [c, setC] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/calories/calibration`)
+      .then(r => r.json())
+      .then(setC)
+      .catch(console.error);
+  }, []);
+
+  if (!c) return null;
+  if (!c.ready) {
+    return (
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <p className="text-sm font-semibold text-gray-800 mb-1">Reality check</p>
+        <p className="text-xs text-gray-400">
+          Needs {c.min_logged_days} fully logged days (now {c.logged_days}) and {c.min_weigh_ins} weigh-ins
+          (now {c.weigh_ins}) in the last {c.days} days.
+        </p>
+      </div>
+    );
+  }
+
+  const diffPct = Math.round((c.factor - 1) * 100);
+  const trend = c.weight_change_kg_per_week;
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm">
+      <p className="text-sm font-semibold text-gray-800 mb-3">Reality check · last {c.days} days</p>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Estimated burn</p>
+          <p className="text-sm font-bold text-gray-900">{c.avg_burned_estimated.toLocaleString()} kcal</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">From weight trend</p>
+          <p className="text-sm font-bold text-gray-900">{c.avg_burned_measured.toLocaleString()} kcal</p>
+        </div>
+      </div>
+      <p className={`text-xs font-medium ${Math.abs(diffPct) <= 5 ? "text-green-600" : "text-orange-500"}`}>
+        {Math.abs(diffPct) <= 5
+          ? "Estimate matches your weight trend"
+          : `Estimate is ~${Math.abs(diffPct)}% too ${diffPct < 0 ? "high" : "low"} (factor ${c.factor})`}
+      </p>
+      <p className="text-[10px] text-gray-400 mt-1">
+        {c.logged_days} logged days · {c.weigh_ins} weigh-ins · weight {trend > 0 ? "+" : ""}{trend} kg/week ·
+        avg intake {c.avg_intake.toLocaleString()} kcal
+      </p>
+    </div>
+  );
+}
+
 function WeeklyChart({ data }) {
   const weeks = [];
   let current = [];
@@ -162,16 +231,19 @@ export default function CaloriesHistory({ onBack }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [kpiDays, setKpiDays] = useState(7);
+  // Grows when the calendar pages back to a month the loaded history doesn't cover
+  const [historyDays, setHistoryDays] = useState(Math.max(30, daysSince(new Date().getFullYear(), new Date().getMonth())));
 
   useEffect(() => {
-    fetch(`${API}/api/calories/history?days=30`)
+    fetch(`${API}/api/calories/history?days=${historyDays}`)
       .then(r => r.json())
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [historyDays]);
 
-  const kpiData = kpiDays === 7 ? data.slice(-7) : data;
+  const last30 = data.slice(-30);
+  const kpiData = kpiDays === 7 ? data.slice(-7) : last30;
   const daysWithData = kpiData.filter(d => d.consumed > 0);
   // Burned is known for every day; consumed only for days with logged food
   const avgBurned = kpiData.length ? Math.round(kpiData.reduce((s, d) => s + d.burned, 0) / kpiData.length) : null;
@@ -205,8 +277,9 @@ export default function CaloriesHistory({ onBack }) {
             <KPI label="Avg consumed" value={avgConsumed ? `${avgConsumed.toLocaleString()} kcal` : null} />
           </div>
 
-          <CalendarHeatmap data={data} />
-          <WeeklyChart data={data} />
+          <CalendarHeatmap data={data} onNeedDays={(n) => setHistoryDays(d => Math.max(d, n))} />
+          <WeeklyChart data={last30} />
+          <CalibrationCard />
         </>
       )}
     </div>

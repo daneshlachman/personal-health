@@ -9,7 +9,7 @@ from app.models import WhoopData, NutritionLog, WeightLog, Workout, ChatMessage
 from app.services.workout_utils import dedupe_workouts
 from app.services.energy import local_today
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-sonnet-5-5"
 MAX_HISTORY_FOOD = 0
 MAX_HISTORY_DEFAULT = 4
 
@@ -231,7 +231,32 @@ Today's nutrition so far: {nutrition_str}
     return context
 
 
-WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search"}
+WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search"}
+MAX_CONTINUATIONS = 5
+
+
+def _create_until_done(client, messages: list, **kwargs) -> str:
+    """Run a request to completion and return its text. Web search is a server tool: a long
+    search can pause the turn (pause_turn), and sending it back lets the server continue."""
+    texts = []
+    for _ in range(MAX_CONTINUATIONS):
+        response = client.messages.create(
+            model=MODEL,
+            messages=messages,
+            # Chat and food extraction: low effort keeps answers quick (Sonnet 5.5 thinks by default)
+            output_config={"effort": "low"},
+            # Server-side fallback reroutes the request if the model declines it
+            extra_headers={"anthropic-beta": "server-side-fallback-2026-07-01"},
+            extra_body={"fallbacks": "default"},
+            **kwargs,
+        )
+        texts += [b.text for b in response.content if b.type == "text" and b.text]
+        if response.stop_reason != "pause_turn":
+            break
+        messages = messages + [{"role": "assistant", "content": response.content}]
+    if response.stop_reason == "refusal":
+        current_app.logger.warning(f"Claude declined: {response.stop_details}")
+    return "\n".join(texts)
 
 
 def _get_history(user_id: str, limit: int, target_date: date = None) -> list[dict]:
@@ -279,31 +304,12 @@ Respond in the same language the user writes in. Be concise and data-driven."""
     history = _get_history(user_id, history_limit, target_date)
     messages = history + [{"role": "user", "content": user_message}]
 
-    while True:
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=2048 if is_food else 1024,
-            system=system_prompt,
-            tools=tools,
-            messages=messages,
-        )
-
-        text_blocks = [b for b in response.content if hasattr(b, "text") and b.text]
-
-        if response.stop_reason == "end_turn":
-            return "\n".join(b.text for b in text_blocks) if text_blocks else ""
-
-        if response.stop_reason == "tool_use":
-            # Continue loop — web_search is server-side, pass back tool results
-            messages.append({"role": "assistant", "content": response.content})
-            tool_results = [
-                {"type": "tool_result", "tool_use_id": b.id, "content": ""}
-                for b in response.content if hasattr(b, "id") and b.type == "tool_use"
-            ]
-            if tool_results:
-                messages.append({"role": "user", "content": tool_results})
-        else:
-            return "\n".join(b.text for b in text_blocks) if text_blocks else ""
+    return _create_until_done(
+        client, messages,
+        max_tokens=8000 if is_food else 4000,  # thinking counts toward max_tokens
+        system=system_prompt,
+        tools=tools,
+    )
 
 
 def log_food_quick(description: str, meal_type_hint: str, target_date_str: str, user_id: str) -> list:
@@ -319,24 +325,7 @@ def log_food_quick(description: str, meal_type_hint: str, target_date_str: str, 
 Rules: one entry per food item, NEVO nutritional values, calories ≈ protein*4 + carbs*4 + fat*9, use web search for branded products, output ONLY the JSON array."""
 
     messages = [{"role": "user", "content": description}]
-    text = ""
-    while True:
-        response = client.messages.create(
-            model=MODEL, max_tokens=1024, system=system, tools=tools, messages=messages,
-        )
-        text_blocks = [b for b in response.content if hasattr(b, "text") and b.text]
-        if response.stop_reason == "end_turn":
-            text = "\n".join(b.text for b in text_blocks)
-            break
-        if response.stop_reason == "tool_use":
-            messages.append({"role": "assistant", "content": response.content})
-            tool_results = [{"type": "tool_result", "tool_use_id": b.id, "content": ""}
-                            for b in response.content if hasattr(b, "id") and b.type == "tool_use"]
-            if tool_results:
-                messages.append({"role": "user", "content": tool_results})
-        else:
-            text = "\n".join(b.text for b in text_blocks)
-            break
+    text = _create_until_done(client, messages, max_tokens=4000, system=system, tools=tools)
 
     code_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', text, re.DOTALL)
     bare_match = re.search(r'\[.*?\]', text, re.DOTALL)

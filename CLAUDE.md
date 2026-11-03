@@ -32,7 +32,8 @@ Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-fr
 #### Weight
 | Method | Path | Body / Query | Response |
 |--------|------|--------------|----------|
-| GET | `/api/weight?days={n}` | — | `[{id, date, weight_kg, source, photo_data, created_at}]` |
+| GET | `/api/weight?days={n}` | — | `[{id, date, weight_kg, source, photo_url, created_at}]` (geen foto's in de lijst) |
+| GET | `/api/weight/{id}/photo?v={hash}` | — | de foto als JPEG, eeuwig cachebaar (hash in URL) |
 | POST | `/api/weight` | `{weight_kg, date?, photo_data?}` | created entry |
 | PUT | `/api/weight/{id}` | `{weight_kg?, date?, photo_data?}` | updated entry |
 | DELETE | `/api/weight/{id}` | — | 204 |
@@ -43,11 +44,12 @@ Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-fr
 | GET | `/api/nutrition?date={YYYY-MM-DD}` | — | `[{id, date, meal_type, description, calories, protein_g, carbs_g, fat_g}]` |
 | POST | `/api/nutrition` | `{date, meal_type, description, calories, protein_g, carbs_g, fat_g}` | created entry |
 | DELETE | `/api/nutrition/{id}` | — | `{deleted: id}` |
+| GET | `/api/nutrition/frequent?meal={meal}` | — | items van de laatste 21 dagen (+ `count`, `meal_count`), deze maaltijd eerst |
 
 #### Workouts
 | Method | Path | Body / Query | Response |
 |--------|------|--------------|----------|
-| GET | `/api/workouts?limit={n}` | — | `[{id, date, source, title, duration_minutes, exercises, raw_json}]` |
+| GET | `/api/workouts?limit={n}` | — | `[{id, date, source, title, duration_minutes, exercises, raw_json}]`, ontdubbeld (Garmin > Hevy > Whoop op overlap) |
 | GET | `/api/workouts/{id}/route` | — | `{points: [[lat,lon]], metrics: [{t, hr, kmh}]}` |
 
 #### Sync
@@ -71,6 +73,7 @@ Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-fr
 |--------|------|----------|
 | GET | `/api/tdee/today?date={date}` | `{tdee, burned_now, bmr, step_kcal, workout_kcal, consumed, balance, weight_kg}` |
 | GET | `/api/calories/history?days={n}` | `[{date, burned, consumed, balance}]` |
+| GET | `/api/calories/calibration?days=28` | geschat vs uit gewichtstrend afgeleid verbruik (`ready`, `factor`, …) |
 
 #### Chat
 | Method | Path | Body | Response |
@@ -91,7 +94,7 @@ Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-fr
 
 ### Data modellen
 ```
-WeightLog:    { id, date, weight_kg, source, photo_data (base64 JPEG) }
+WeightLog:    { id, date, weight_kg, source, photo_data (base64 data URL, deferred — nooit in lijsten) }
 NutritionLog: { id, date, meal_type, description, calories, protein_g, carbs_g, fat_g }
 WhoopData:    { id, date, recovery_score (0-100), sleep_score (0-100), hrv_ms, resting_hr,
                 respiratory_rate, sleep_duration_hours, sleep_needed_hours,
@@ -139,9 +142,13 @@ BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.028 kcal × gewicht/70 (net
 - Stappen = Whoop `step_count` minus Garmin workout-stappen (die zitten al in workout kcal).
 - Vandaag: BMR+TEF geschaald op tijd van de dag, stappen tot nu toe tellen volledig; dag-schatting gebruikt max(stappen nu, 14-daags gemiddelde).
 - Geen Whoop stappen → 14-daags gemiddelde → profiel `avg_daily_steps` → 10.000.
+- Controle: `/api/calories/calibration` vergelijkt met de gewichtstrend (gemiddelde intake op volledig gelogde dagen − helling gewicht × 7700). Alleen een voorstel; wordt niet automatisch toegepast.
+
+## Claude
+- Chat + snelle voedingslog: `claude-sonnet-5-5`, effort `low`, web search `web_search_20260209`, server-side fallback; `pause_turn` wordt doorgezet (`_create_until_done` in `claude.py`).
+- Trainingsadvies: `claude-opus-5-5` (`coach.py`). SDK `anthropic` 1.x.
 
 ## Open punten
-- Workout deduplicatie (Hevy > Garmin > Whoop) zit in frontend én `workout_utils.py` — hoort in `backend/app/routes/workouts.py`.
 - Dashboard heeft een hardcoded ReferenceLine op 28 Mar in de weight chart.
 
 ---

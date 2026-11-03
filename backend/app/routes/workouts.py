@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.models import Workout
 from app.routes.chat import _ensure_user
 from app.services.energy import local_today
+from app.services.workout_utils import dedupe_workouts
 
 workouts_bp = Blueprint("workouts", __name__)
 
@@ -83,7 +84,8 @@ def get_workouts():
         .limit(limit)
         .all()
     )
-    return jsonify([_workout_with_exercises(w) for w in workouts])
+    # One entry per session: the same workout often arrives from Garmin, Hevy and Whoop
+    return jsonify([_workout_with_exercises(w) for w in dedupe_workouts(workouts)])
 
 
 MAX_RECOMMENDATIONS_PER_DAY = 5
