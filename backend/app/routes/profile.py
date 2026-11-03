@@ -167,6 +167,16 @@ def _calorie_days(days: int) -> list[dict]:
             "auto_complete": auto_complete(consumed, burned),
             "override": manual.get(current),
             "balance": consumed - burned if complete else None,
+            # How `burned` adds up; steps is the remainder so the parts always sum exactly
+            "breakdown": {
+                "bmr": energy["bmr"],
+                "tef": energy["tef"],
+                "steps": energy["steps"],
+                "steps_source": energy["steps_source"],
+                "step_kcal": energy["tdee_raw"] - energy["bmr"] - energy["tef"] - energy["workout_kcal"],
+                "workout_kcal": energy["workout_kcal"],
+                "adaptive": burned - energy["tdee_raw"],
+            },
         })
         current += timedelta(days=1)
     return result

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "../utils/api";
 import { toDecimal } from "../utils/decimal";
-import { cachedFetch, setCache, invalidateCachePrefix } from "../utils/cache";
+import { cachedFetch, setCache } from "../utils/cache";
 import { searchCommon } from "../utils/commonFoods";
 import { compressImage } from "../utils/image";
 
@@ -619,48 +619,6 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog, onPho
   );
 }
 
-// Whether this day counts in averages and balances. Automatic (enough logged vs. burned),
-// tap to override; tapping back to what the rule says removes the override.
-function DayStatus({ date, consumed }) {
-  const [status, setStatus] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    fetch(`${API}/api/nutrition/day-status?date=${date}`)
-      .then((r) => r.json())
-      .then(setStatus)
-      .catch(console.error);
-  }, [date, Math.round(consumed)]);
-
-  if (!status) return null;
-  const toggle = () => {
-    const next = !status.complete;
-    setSaving(true);
-    fetch(`${API}/api/nutrition/day-status`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, complete: next === status.auto_complete ? null : next }),
-    })
-      .then((r) => r.json())
-      .then((s) => { setStatus(s); invalidateCachePrefix("calories"); })
-      .catch(console.error)
-      .finally(() => setSaving(false));
-  };
-
-  return (
-    <div className="flex justify-center -mt-2">
-      <button onClick={toggle} disabled={saving}
-        className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors disabled:opacity-50 ${
-          status.complete ? "bg-green-50 text-green-600 border-green-200" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
-        {status.complete ? "✓ Fully logged" : "Not fully logged"}
-        <span className="text-[10px] opacity-60 ml-1.5">
-          {status.override == null ? `auto · ≥ ${status.threshold.toLocaleString()} kcal` : "set by you · tap to change"}
-        </span>
-      </button>
-    </div>
-  );
-}
-
 export default function NutritionLog() {
   const [logs, setLogs] = useState([]);
   const [date, setDate] = useState(todayISO);
@@ -746,7 +704,6 @@ export default function NutritionLog() {
         </button>
         <button onClick={nextDay} disabled={date >= todayISO} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-2xl font-light disabled:opacity-0">›</button>
       </div>
-      <DayStatus date={date} consumed={totals.calories} />
       {calendarOpen && <MiniCalendar selected={date} onSelect={setDate} onClose={() => setCalendarOpen(false)} />}
 
       {/* Calorie + macros */}

@@ -31,7 +31,7 @@ function daysSince(year, month) {
   return Math.ceil((new Date(todayISO + "T12:00:00") - new Date(year, month, 1, 12)) / 86400000) + 1;
 }
 
-function CalendarHeatmap({ data, onNeedDays }) {
+function CalendarHeatmap({ data, onNeedDays, onChanged }) {
   const byDate = Object.fromEntries(data.map(d => [d.date, d]));
   const today = new Date(todayISO + "T12:00:00");
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -112,7 +112,7 @@ function CalendarHeatmap({ data, onNeedDays }) {
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wide">Consumed</p>
               <p className="text-sm font-bold text-gray-900">{byDate[selected].consumed > 0 ? `${byDate[selected].consumed.toLocaleString()} kcal` : "—"}</p>
-              {!byDate[selected].complete && selected !== todayISO && <p className="text-[10px] text-gray-400">Not fully logged</p>}
+              <LoggedToggle day={byDate[selected]} onChanged={onChanged} />
             </div>
             {byDate[selected].balance !== null && (
               <div>
@@ -124,8 +124,56 @@ function CalendarHeatmap({ data, onNeedDays }) {
               </div>
             )}
           </div>
+          {byDate[selected].breakdown && <BurnSum b={byDate[selected].breakdown} burned={byDate[selected].burned} />}
         </div>
       )}
+    </div>
+  );
+}
+
+// Whether the day counts in averages: automatic, tap to override (back to auto removes it)
+function LoggedToggle({ day, onChanged }) {
+  const [saving, setSaving] = useState(false);
+  const toggle = () => {
+    const next = !day.complete;
+    setSaving(true);
+    fetch(`${API}/api/nutrition/day-status`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: day.date, complete: next === day.auto_complete ? null : next }),
+    })
+      .then(() => onChanged())
+      .catch(console.error)
+      .finally(() => setSaving(false));
+  };
+  return (
+    <button onClick={toggle} disabled={saving} className="text-[10px] text-gray-400 underline decoration-dotted disabled:opacity-50">
+      {day.complete ? "Fully logged" : "Not fully logged"}
+    </button>
+  );
+}
+
+// BMR + digestion + steps + workouts (+ weight-trend correction) = burned
+function BurnSum({ b, burned }) {
+  const rows = [
+    ["BMR", b.bmr],
+    ["Digestion (10%)", b.tef],
+    [`Steps (${b.steps.toLocaleString()}${b.steps_source === "estimate" ? ", est." : ""})`, b.step_kcal],
+    ["Workouts", b.workout_kcal],
+  ];
+  if (b.adaptive) rows.push(["Weight-trend correction", b.adaptive]);
+  return (
+    <div className="mt-3 bg-gray-50 rounded-xl px-3 py-2 space-y-1">
+      {rows.map(([label, v], i) => (
+        <div key={label} className="flex justify-between text-xs text-gray-500">
+          <span>{label}</span>
+          <span className="tabular-nums">{i > 0 && (v < 0 ? "− " : "+ ")}{Math.abs(v).toLocaleString()} kcal</span>
+        </div>
+      ))}
+      <div className="flex justify-between text-xs font-semibold text-gray-900 border-t border-gray-200 pt-1">
+        <span>Burned</span>
+        <span className="tabular-nums">= {burned.toLocaleString()} kcal</span>
+      </div>
     </div>
   );
 }
@@ -242,6 +290,7 @@ export default function CaloriesHistory({ onBack }) {
   const [kpiDays, setKpiDays] = useState(7);
   // Grows when the calendar pages back to a month the loaded history doesn't cover
   const [historyDays, setHistoryDays] = useState(Math.max(30, daysSince(new Date().getFullYear(), new Date().getMonth())));
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     fetch(`${API}/api/calories/history?days=${historyDays}`)
@@ -249,7 +298,7 @@ export default function CaloriesHistory({ onBack }) {
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [historyDays]);
+  }, [historyDays, reload]);
 
   const last30 = data.slice(-30);
   const kpiData = kpiDays === 7 ? data.slice(-7) : last30;
@@ -288,7 +337,7 @@ export default function CaloriesHistory({ onBack }) {
               sub={`${daysWithData.length} of ${kpiData.length} days fully logged`} />
           </div>
 
-          <CalendarHeatmap data={data} onNeedDays={(n) => setHistoryDays(d => Math.max(d, n))} />
+          <CalendarHeatmap data={data} onNeedDays={(n) => setHistoryDays(d => Math.max(d, n))} onChanged={() => setReload(r => r + 1)} />
           <WeeklyChart data={last30} />
           <CalibrationCard />
         </>
