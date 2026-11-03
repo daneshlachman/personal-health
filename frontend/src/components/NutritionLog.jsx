@@ -347,27 +347,27 @@ function QuickLogModal({ meal, date, onClose, onSaved, initialPhoto = null }) {
           <h2 className="text-sm font-semibold text-gray-700">What did you eat?</h2>
           <button onClick={onClose} className="text-gray-400 text-2xl leading-none">×</button>
         </div>
+        {photo && (
+          <div className="relative">
+            <img src={photo} alt="" className="w-full h-40 rounded-xl object-cover" />
+            <button onClick={() => setPhoto(null)} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white text-sm flex items-center justify-center">×</button>
+          </div>
+        )}
         <textarea
           autoFocus
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); log(); } }}
-          placeholder={photo ? "Optional: e.g. 80g rice, 200g chicken breast" : "e.g. 100g oatmeal, 200ml milk, 30g whey protein myprotein"}
+          placeholder={photo ? "Add details (optional): e.g. 80g rice, 200g chicken breast, with olive oil" : "e.g. 100g oatmeal, 200ml milk, 30g whey protein myprotein"}
           rows={3}
           className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
         />
         <div className="flex items-center gap-3">
-          {photo ? (
-            <div className="relative">
-              <img src={photo} alt="" className="w-16 h-16 rounded-xl object-cover" />
-              <button onClick={() => setPhoto(null)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-700 text-white text-xs flex items-center justify-center">×</button>
-            </div>
-          ) : null}
           <button onClick={() => fileRef.current.click()} className="text-sm text-brand-500 font-medium flex items-center gap-1.5">
-            📷 {photo ? "Other photo" : "Add photo"}
+            📷 {photo ? "Retake photo" : "Take photo"}
           </button>
           <span className="text-[11px] text-gray-400">{photo ? "Amounts you type win over the photo" : ""}</span>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickPhoto} />
         </div>
         {status === "logging" && (
           <p className="text-xs text-brand-500 text-center animate-pulse">⏳ Logging with AI…</p>
@@ -557,7 +557,7 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog, onPho
                 <path d="M6 1v10M1 6h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
               </svg>
             </button>
-            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
+            <input ref={photoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickPhoto} />
             {menuOpen && (
               <div className="absolute right-0 top-8 z-20 bg-white rounded-xl shadow-lg border border-gray-100 py-1 w-36" onClick={() => setMenuOpen(false)}>
                 <button onClick={onQuickLog} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
