@@ -69,7 +69,8 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
     `factor` scales the totals to what the weight trend says; `tdee_raw` stays unscaled."""
     bmr = bmr_for(weight_kg, day)
     tef = bmr * 0.10
-    w_kcal, w_notes = calc_workout_kcal(workouts, weight_kg, (bmr + tef) / (24 * 60))
+    w_items = []
+    w_kcal, w_notes = calc_workout_kcal(workouts, weight_kg, (bmr + tef) / (24 * 60), w_items)
     w_steps = workout_steps(workouts)
 
     measured = steps is not None
@@ -108,6 +109,7 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
         "workout_steps": w_steps,
         "workout_kcal": round(w_kcal),
         "workout_notes": w_notes,
+        "workouts": w_items,
     }
 
 

@@ -62,12 +62,13 @@ def dedupe_workouts(workouts: list) -> list:
     return [w for w in workouts if id(w) in keep]
 
 
-def calc_workout_kcal(workouts: list, weight_kg: float,
-                      resting_kcal_per_min: float = 0) -> tuple[int, list[str]]:
+def calc_workout_kcal(workouts: list, weight_kg: float, resting_kcal_per_min: float = 0,
+                      items: list | None = None) -> tuple[int, list[str]]:
     """Sum workout calories, deduplicating overlapping sources (Garmin > Hevy > Whoop).
     Whoop's HR-based kcal clearly underestimate strength training, so Hevy's MET estimate wins.
     Device kcal are gross; the resting part is subtracted because BMR + TEF already
-    cover the whole day. Returns (total_kcal, list of description strings for context)."""
+    cover the whole day. Returns (total_kcal, list of description strings for context);
+    `items`, when given, is filled with {title, source, kcal} per counted workout."""
     SOURCE_PRIORITY = {"garmin": 0, "hevy": 1, "whoop": 2}
 
     entries = []
@@ -90,21 +91,23 @@ def calc_workout_kcal(workouts: list, weight_kg: float,
             cal = max(0, round(cal - resting_kcal_per_min * (w.duration_minutes or 0)))
             note += f", {cal} kcal net" if resting_kcal_per_min else ""
             start, end = _workout_window(w)
-            entries.append((SOURCE_PRIORITY.get(w.source, 9), start, end, cal, note))
+            entries.append((SOURCE_PRIORITY.get(w.source, 9), start, end, cal, note, w))
 
     entries.sort(key=lambda x: x[0])
 
     accepted = []
     total = 0
     notes = []
-    for priority, start, end, cal, note in entries:
+    for priority, start, end, cal, note, w in entries:
         shadowed = any(
             _overlaps(start, end, a_start, a_end)
-            for _, a_start, a_end, _, _ in accepted
+            for _, a_start, a_end, _, _, _ in accepted
         )
         if not shadowed:
-            accepted.append((priority, start, end, cal, note))
+            accepted.append((priority, start, end, cal, note, w))
             total += cal
             notes.append(note)
+            if items is not None:
+                items.append({"title": w.title, "source": w.source, "kcal": cal})
 
     return total, notes

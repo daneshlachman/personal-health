@@ -136,15 +136,16 @@ function BurnSum({ b, burned }) {
     ["BMR", b.bmr],
     ["Digestion (10%)", b.tef],
     [`Steps (${b.steps.toLocaleString()}${b.steps_source === "estimate" ? ", est." : ""})`, b.step_kcal],
-    ["Workouts", b.workout_kcal],
+    // One line per workout (Garmin/Hevy/Whoop title); older responses only have the total
+    ...(b.workouts?.length ? b.workouts.map(w => [w.title || "Workout", w.kcal]) : [["Workouts", b.workout_kcal]]),
   ];
   if (b.adaptive) rows.push(["Weight-trend correction", b.adaptive]);
   return (
     <div className="mt-3 bg-gray-50 rounded-xl px-3 py-2 space-y-1">
       {rows.map(([label, v], i) => (
-        <div key={label} className="flex justify-between text-xs text-gray-500">
-          <span>{label}</span>
-          <span className="tabular-nums">{i > 0 && (v < 0 ? "− " : "+ ")}{Math.abs(v).toLocaleString()} kcal</span>
+        <div key={i} className="flex justify-between gap-3 text-xs text-gray-500">
+          <span className="truncate">{label}</span>
+          <span className="tabular-nums shrink-0">{i > 0 && (v < 0 ? "− " : "+ ")}{Math.abs(v).toLocaleString()} kcal</span>
         </div>
       ))}
       <div className="flex justify-between text-xs font-semibold text-gray-900 border-t border-gray-200 pt-1">
