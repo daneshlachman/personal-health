@@ -98,7 +98,8 @@ class WhoopData(db.Model):
     sleep_efficiency_pct = db.Column(db.Integer)
     sleep_disturbances = db.Column(db.Integer)
     step_count = db.Column(db.Integer)
-    raw_json = db.Column(db.JSON)
+    raw_json = db.Column(db.JSON)    # Whoop recovery record
+    sleep_json = db.Column(db.JSON)  # Whoop sleep record (stages, bed/wake times, sleep need)
     created_at = db.Column(db.DateTime(timezone=True), default=_now)
 
     def to_dict(self):

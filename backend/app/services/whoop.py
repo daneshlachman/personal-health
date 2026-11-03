@@ -253,7 +253,8 @@ def sync(user_id: str, days: int = 30) -> dict:
         needed_ms = (
             (sleep_needed.get("baseline_milli") or 0) +
             (sleep_needed.get("need_from_sleep_debt_milli") or 0) +
-            (sleep_needed.get("need_from_strain_milli") or 0)
+            (sleep_needed.get("need_from_recent_strain_milli") or 0) -
+            abs(sleep_needed.get("need_from_recent_nap_milli") or 0)  # a nap lowers the need
         )
         day_map.setdefault(d, {})
         day_map[d].update({
@@ -262,8 +263,9 @@ def sync(user_id: str, days: int = 30) -> dict:
             "sleep_needed_hours": round(needed_ms / 3_600_000, 2) if needed_ms else None,
             "sleep_consistency_pct": score.get("sleep_consistency_percentage"),
             "sleep_efficiency_pct": score.get("sleep_efficiency_percentage"),
-            "sleep_disturbances": score.get("disturbance_count"),
+            "sleep_disturbances": (score.get("stage_summary") or {}).get("disturbance_count"),
             "respiratory_rate": score.get("respiratory_rate"),
+            "sleep_raw": s,
         })
 
     # Merge recovery into the same date — use the associated sleep date when available
@@ -325,10 +327,12 @@ def sync(user_id: str, days: int = 30) -> dict:
         existing = WhoopData.query.filter_by(user_id=user_id, date=d).first()
         if existing:
             for k, v in values.items():
-                if k != "raw" and v is not None:
+                if k not in ("raw", "sleep_raw") and v is not None:
                     setattr(existing, k, v)
             if "raw" in values:
                 existing.raw_json = values["raw"]
+            if "sleep_raw" in values:
+                existing.sleep_json = values["sleep_raw"]
         else:
             existing = WhoopData(
                 user_id=user_id,
@@ -345,6 +349,7 @@ def sync(user_id: str, days: int = 30) -> dict:
                 sleep_disturbances=values.get("sleep_disturbances"),
                 step_count=values.get("step_count"),
                 raw_json=values.get("raw"),
+                sleep_json=values.get("sleep_raw"),
             )
             db.session.add(existing)
         upserted += 1

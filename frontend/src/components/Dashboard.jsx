@@ -29,6 +29,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 import WhoopHistory from "./WhoopHistory";
+import WhoopDay from "./WhoopDay";
 import WeightHistory from "./WeightHistory";
 import CaloriesHistory from "./CaloriesHistory";
 import Settings from "./Settings";
@@ -175,6 +176,7 @@ function MiniCalendar({ selected, onSelect, onClose }) {
 }
 
 export default function Dashboard({ onNavigate }) {
+  const [longTermTab, setLongTermTab] = useState(null);
   const [date, setDate] = useState(todayISO);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [historyTab, setHistoryTab] = useState(null);
@@ -304,7 +306,8 @@ export default function Dashboard({ onNavigate }) {
     }
   };
 
-  if (historyTab) return <WhoopHistory onBack={() => setHistoryTab(null)} initialTab={historyTab} />;
+  if (longTermTab) return <WhoopHistory onBack={() => setLongTermTab(null)} initialTab={longTermTab} />;
+  if (historyTab) return <WhoopDay initialDate={date} initialTab={historyTab} onBack={() => setHistoryTab(null)} onLongTerm={setLongTermTab} />;
   if (showWeightHistory) return <WeightHistory onBack={() => setShowWeightHistory(false)} />;
   if (showCaloriesHistory) return <CaloriesHistory onBack={() => setShowCaloriesHistory(false)} />;
   if (showSettings) return (

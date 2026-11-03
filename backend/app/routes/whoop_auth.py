@@ -129,3 +129,99 @@ def today():
     if not record:
         return jsonify({"error": "no data"})
     return jsonify(record.to_dict())
+
+
+BASELINE_DAYS = 30
+TREND_DAYS = 7
+
+
+def _hours(ms):
+    return round(ms / 3_600_000, 2) if ms is not None else None
+
+
+def _local_clock(iso, offset):
+    """Whoop UTC timestamp + its timezone offset → local 'YYYY-MM-DDTHH:MM'."""
+    from datetime import datetime, timedelta
+    if not iso:
+        return None
+    t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    sign = -1 if (offset or "+00:00").startswith("-") else 1
+    hh, mm = (offset or "+00:00").lstrip("+-").split(":")
+    t = t + sign * timedelta(hours=int(hh), minutes=int(mm))
+    return t.strftime("%Y-%m-%dT%H:%M")
+
+
+def _whoop_detail(r):
+    """Everything the recovery and sleep screens show for one day."""
+    rec = (r.raw_json or {}).get("score") or {}
+    sleep = r.sleep_json or {}
+    score = sleep.get("score") or {}
+    stages = score.get("stage_summary") or {}
+    need = score.get("sleep_needed") or {}
+
+    in_bed = stages.get("total_in_bed_time_milli")
+    awake = stages.get("total_awake_time_milli")
+    asleep = _hours(in_bed - awake) if in_bed is not None and awake is not None else None
+    needed = r.sleep_needed_hours
+    return {
+        "date": r.date.isoformat(),
+        "recovery_score": r.recovery_score,
+        "hrv_ms": round(r.hrv_ms, 1) if r.hrv_ms else None,
+        "resting_hr": r.resting_hr,
+        "respiratory_rate": round(r.respiratory_rate, 1) if r.respiratory_rate else None,
+        "spo2_pct": round(rec["spo2_percentage"], 1) if rec.get("spo2_percentage") else None,
+        "skin_temp_c": round(rec["skin_temp_celsius"], 1) if rec.get("skin_temp_celsius") else None,
+        "sleep_score": r.sleep_score,
+        "sleep_consistency_pct": r.sleep_consistency_pct,
+        "sleep_efficiency_pct": round(r.sleep_efficiency_pct) if r.sleep_efficiency_pct is not None else None,
+        "disturbances": stages.get("disturbance_count", r.sleep_disturbances),
+        "sleep_cycles": stages.get("sleep_cycle_count"),
+        "bed_start": _local_clock(sleep.get("start"), sleep.get("timezone_offset")),
+        "bed_end": _local_clock(sleep.get("end"), sleep.get("timezone_offset")),
+        "in_bed_hours": _hours(in_bed) if in_bed is not None else r.sleep_duration_hours,
+        "asleep_hours": asleep,
+        "sleep_needed_hours": needed,
+        "hours_vs_needed_pct": round(100 * asleep / needed) if asleep and needed else None,
+        "stages": {
+            "awake": _hours(awake),
+            "light": _hours(stages.get("total_light_sleep_time_milli")),
+            "deep": _hours(stages.get("total_slow_wave_sleep_time_milli")),
+            "rem": _hours(stages.get("total_rem_sleep_time_milli")),
+        } if stages else None,
+        "need": {
+            "baseline": _hours(need.get("baseline_milli")),
+            "strain": _hours(need.get("need_from_recent_strain_milli")),
+            "debt": _hours(need.get("need_from_sleep_debt_milli")),
+            "nap": _hours(-abs(need.get("need_from_recent_nap_milli") or 0)),
+        } if need else None,
+    }
+
+
+@whoop_bp.route("/whoop/details")
+def details():
+    """One day in full, the week up to it, and the 30-day average before it per metric."""
+    from datetime import date, timedelta
+    from app.models import WhoopData
+    user = _ensure_user()
+    try:
+        target = date.fromisoformat(request.args["date"]) if request.args.get("date") else local_today()
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    rows = (
+        WhoopData.query.filter_by(user_id=user.id)
+        .filter(WhoopData.date > target - timedelta(days=BASELINE_DAYS), WhoopData.date <= target)
+        .order_by(WhoopData.date).all()
+    )
+    detail = [_whoop_detail(r) for r in rows]
+    by_date = {d["date"]: d for d in detail}
+    week = [by_date.get((target - timedelta(days=i)).isoformat())
+            or {"date": (target - timedelta(days=i)).isoformat()} for i in range(TREND_DAYS - 1, -1, -1)]
+
+    keys = ["recovery_score", "hrv_ms", "resting_hr", "respiratory_rate", "spo2_pct", "skin_temp_c",
+            "sleep_score", "sleep_consistency_pct", "sleep_efficiency_pct", "hours_vs_needed_pct",
+            "asleep_hours", "disturbances"]
+    baseline = {}
+    for k in keys:
+        vals = [d[k] for d in detail if d[k] is not None]
+        baseline[k] = round(sum(vals) / len(vals), 1) if vals else None
+    return jsonify({"day": by_date.get(target.isoformat()), "week": week, "baseline": baseline})
