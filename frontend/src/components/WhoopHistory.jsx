@@ -58,7 +58,7 @@ function Stat({ label, value, unit, color }) {
   return (
     <div className="bg-white rounded-xl p-3 shadow-sm flex flex-col gap-0.5">
       <span className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</span>
-      <span className="text-lg font-bold" style={{ color: color || "#111827" }}>
+      <span className="text-lg font-bold text-gray-900" style={color ? { color } : undefined}>
         {value != null ? `${value}` : "—"}<span className="text-xs font-normal text-gray-400 ml-0.5">{unit}</span>
       </span>
     </div>

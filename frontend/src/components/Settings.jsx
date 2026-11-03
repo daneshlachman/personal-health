@@ -1,6 +1,45 @@
 import { useEffect, useState } from "react";
 import { API } from "../utils/api";
 import { cachedFetch, setCache } from "../utils/cache";
+import { sunTimes, useThemeSetting } from "../utils/theme";
+
+const THEMES = [
+  { value: "auto", label: "Auto" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+function Appearance() {
+  const [theme, setTheme] = useThemeSetting();
+  const { sunrise, sunset } = sunTimes();
+  const fmt = (d) => d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-900">Appearance</p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {theme === "auto"
+            ? `Light from sunrise (${fmt(sunrise)}) to sunset (${fmt(sunset)}), dark otherwise`
+            : `Always ${theme}`}
+        </p>
+      </div>
+      <div className="flex bg-gray-100 rounded-xl p-1">
+        {THEMES.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTheme(t.value)}
+            className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition-colors ${
+              theme === t.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function CalorieGoal() {
   const [saved, setSaved] = useState(null);
@@ -137,6 +176,8 @@ export default function Settings({ onBack, whoopConnected, syncing, onSync, onDi
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 text-xl">←</button>
         <h1 className="text-xl font-bold text-gray-900">Settings</h1>
       </div>
+
+      <Appearance />
 
       <Goals />
 

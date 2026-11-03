@@ -20,7 +20,7 @@ function KPI({ label, value, sub, color }) {
   return (
     <div className="bg-white rounded-xl p-3 shadow-sm">
       <span className="text-[10px] text-gray-400 uppercase tracking-wide block mb-0.5">{label}</span>
-      <span className="text-lg font-bold" style={color ? { color } : { color: "#111827" }}>{value ?? "—"}</span>
+      <span className="text-lg font-bold text-gray-900" style={color ? { color } : undefined}>{value ?? "—"}</span>
       {sub && <span className="text-[10px] text-gray-400 block mt-0.5">{sub}</span>}
     </div>
   );
