@@ -173,6 +173,7 @@ def _calorie_days(days: int) -> list[dict]:
                 "tef": energy["tef"],
                 "steps": energy["steps"],
                 "steps_source": energy["steps_source"],
+                "workout_steps": energy["workout_steps"],
                 "step_kcal": energy["tdee_raw"] - energy["bmr"] - energy["tef"] - energy["workout_kcal"],
                 "workout_kcal": energy["workout_kcal"],
                 "workouts": energy["workouts"],
