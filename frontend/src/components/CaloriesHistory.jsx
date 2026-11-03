@@ -178,6 +178,65 @@ function BurnSum({ b, burned, isToday }) {
   );
 }
 
+// What the scale says was eaten, and what that leaves for the days that weren't logged
+function IntakeEstimateCard() {
+  const [e, setE] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/calories/intake-estimate`)
+      .then(r => r.json())
+      .then(setE)
+      .catch(console.error);
+  }, []);
+
+  if (!e) return null;
+  if (!e.ready) {
+    return (
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <p className="text-sm font-semibold text-gray-800 mb-1">Intake from weight</p>
+        <p className="text-xs text-gray-400">Needs {e.min_weigh_ins} weigh-ins in the last {e.days} days (now {e.weigh_ins}).</p>
+      </div>
+    );
+  }
+
+  const trend = e.weight_change_kg_per_week;
+  const kcal = (v) => v == null ? "—" : `${v.toLocaleString()} kcal`;
+  const unloggedBalance = e.avg_intake_unlogged_days != null ? e.avg_intake_unlogged_days - e.avg_burned_unlogged_days : null;
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm">
+      <p className="text-sm font-semibold text-gray-800 mb-3">Intake from weight · last {e.days} days</p>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Est. avg intake</p>
+          <p className="text-sm font-bold text-gray-900">{kcal(e.avg_intake_estimated)}</p>
+          <p className="text-[10px] text-gray-400">burned {e.avg_burned.toLocaleString()} · weight {trend > 0 ? "+" : ""}{trend} kg/wk</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Logged days</p>
+          <p className="text-sm font-bold text-gray-900">{kcal(e.avg_intake_logged_days)}</p>
+          <p className="text-[10px] text-gray-400">{e.logged_days} days, as logged</p>
+        </div>
+      </div>
+      {e.unlogged_days > 0 && (
+        <div className="bg-gray-50 rounded-xl px-3 py-2">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Unlogged days ({e.unlogged_days})</p>
+          <p className="text-sm font-bold text-gray-900">
+            ~{kcal(e.avg_intake_unlogged_days)}
+            {unloggedBalance != null && (
+              <span className={`text-xs font-medium ml-2 ${unloggedBalance < 0 ? "text-green-600" : "text-orange-500"}`}>
+                {unloggedBalance > 0 ? "+" : ""}{unloggedBalance.toLocaleString()} vs burned
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+      <p className="text-[10px] text-gray-400 mt-2">
+        Burned + weight trend × 7,700 kcal/kg, minus what you logged. Water swings make this rough; daily weigh-ins help.
+      </p>
+    </div>
+  );
+}
+
 // Estimated burn vs what the weight trend says was really burned
 function CalibrationCard() {
   const [c, setC] = useState(null);
@@ -338,6 +397,7 @@ export default function CaloriesHistory({ onBack }) {
 
           <CalendarHeatmap data={data} onNeedDays={(n) => setHistoryDays(d => Math.max(d, n))} />
           <WeeklyChart data={last30} />
+          <IntakeEstimateCard />
           <CalibrationCard />
         </>
       )}

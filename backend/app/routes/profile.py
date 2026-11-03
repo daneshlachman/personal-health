@@ -200,6 +200,15 @@ FACTOR_MIN, FACTOR_MAX = 0.75, 1.15  # never let one odd month swing the estimat
 FACTOR_REFRESH_DAYS = 7
 
 
+def _weight_slope(weights: list, since: date) -> float:
+    """Least-squares slope of weight over time (kg/day): far less noisy than first vs last."""
+    xs = [(w.date - since).days for w in weights]
+    ys = [w.weight_kg for w in weights]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    var = sum((x - mx) ** 2 for x in xs)
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / var if var else 0
+
+
 def _calibration(days: int = CALIBRATION_DAYS) -> dict:
     """Check the burn estimate against reality: the weight trend says what the real
     average balance was, so real burn = average intake - weight change x 7700 kcal/kg.
@@ -218,13 +227,7 @@ def _calibration(days: int = CALIBRATION_DAYS) -> dict:
     if len(logged) < MIN_LOGGED_DAYS or len(weights) < MIN_WEIGHINS:
         return {**result, "ready": False}
 
-    # Least-squares slope of weight over time (kg/day): far less noisy than first vs last
-    xs = [(w.date - since).days for w in weights]
-    ys = [w.weight_kg for w in weights]
-    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
-    var = sum((x - mx) ** 2 for x in xs)
-    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / var if var else 0
-
+    slope = _weight_slope(weights, since)
     intake = sum(r["consumed"] for r in logged) / len(logged)
     estimated = sum(r["burned_raw"] for r in logged) / len(logged)
     measured = intake - slope * KCAL_PER_KG
@@ -252,6 +255,50 @@ def refresh_tdee_factor(force: bool = False):
     profile.tdee_factor = round(min(FACTOR_MAX, max(FACTOR_MIN, cal["factor"])), 3)
     profile.tdee_factor_updated = local_today()
     db.session.commit()
+
+
+def _intake_estimate(days: int = CALIBRATION_DAYS) -> dict:
+    """What was eaten according to the scale: average intake = average burn + weight trend
+    x 7700 kcal/kg, over all days (logged or not). Minus what the fully logged days account
+    for, the rest is what the unlogged days must have averaged. Today is left out."""
+    today = local_today()
+    since = today - timedelta(days=days)
+    rows = [r for r in _calorie_days(days) if r["date"] < today.isoformat()]
+    logged = [r for r in rows if r["complete"]]
+    unlogged = [r for r in rows if not r["complete"]]
+    weights = (
+        WeightLog.query.filter(WeightLog.user_id == USER_ID, WeightLog.date > since)
+        .order_by(WeightLog.date).all()
+    )
+    result = {"days": len(rows), "logged_days": len(logged), "unlogged_days": len(unlogged),
+              "weigh_ins": len(weights), "min_weigh_ins": MIN_WEIGHINS}
+    if len(weights) < MIN_WEIGHINS or not rows:
+        return {**result, "ready": False}
+
+    slope = _weight_slope(weights, since)
+    burned = sum(r["burned"] for r in rows) / len(rows)
+    intake = burned + slope * KCAL_PER_KG
+    logged_intake = sum(r["consumed"] for r in logged) / len(logged) if logged else None
+    unlogged_intake = None
+    if unlogged:
+        unlogged_burned = sum(r["burned"] for r in unlogged) / len(unlogged)
+        total_unlogged = intake * len(rows) - sum(r["consumed"] for r in logged)
+        unlogged_intake = total_unlogged / len(unlogged)
+    return {
+        **result,
+        "ready": True,
+        "weight_change_kg_per_week": round(slope * 7, 2),
+        "avg_burned": round(burned),
+        "avg_intake_estimated": round(intake),
+        "avg_intake_logged_days": round(logged_intake) if logged_intake is not None else None,
+        "avg_intake_unlogged_days": round(unlogged_intake) if unlogged_intake is not None else None,
+        "avg_burned_unlogged_days": round(unlogged_burned) if unlogged else None,
+    }
+
+
+@profile_bp.route("/calories/intake-estimate", methods=["GET"])
+def calories_intake_estimate():
+    return jsonify(_intake_estimate(int(request.args.get("days", CALIBRATION_DAYS))))
 
 
 @profile_bp.route("/calories/calibration", methods=["GET"])
