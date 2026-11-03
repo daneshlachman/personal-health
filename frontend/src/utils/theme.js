@@ -41,7 +41,7 @@ export function resolvedTheme(setting = getThemeSetting(), now = new Date()) {
 export function applyTheme() {
   const dark = resolvedTheme() === "dark";
   document.documentElement.classList.toggle("dark", dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#111827" : "#0ea5e9");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#000000" : "#0ea5e9");
 }
 
 // Re-check every minute and when the app comes back to the foreground
