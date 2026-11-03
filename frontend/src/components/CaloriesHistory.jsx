@@ -72,6 +72,7 @@ function CalendarHeatmap({ data, onNeedDays }) {
         <div className="flex items-center gap-2 text-[10px] text-gray-400">
           <span className="w-3 h-3 rounded-sm bg-green-500 inline-block" /> Deficit
           <span className="w-3 h-3 rounded-sm bg-orange-500 inline-block ml-1" /> Surplus
+          <span className="w-3 h-3 rounded-sm bg-gray-100 inline-block ml-1" /> Not logged
         </div>
       </div>
       <div className="grid grid-cols-7 mb-1">
@@ -111,6 +112,7 @@ function CalendarHeatmap({ data, onNeedDays }) {
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wide">Consumed</p>
               <p className="text-sm font-bold text-gray-900">{byDate[selected].consumed > 0 ? `${byDate[selected].consumed.toLocaleString()} kcal` : "—"}</p>
+              {!byDate[selected].complete && selected !== todayISO && <p className="text-[10px] text-gray-400">Not fully logged</p>}
             </div>
             {byDate[selected].balance !== null && (
               <div>
@@ -189,7 +191,7 @@ function WeeklyChart({ data }) {
     if (dow === 0 || i === data.length - 1) {
       const n = current.length;
       const burned = Math.round(current.reduce((s, x) => s + x.burned, 0) / n);
-      const daysWithFood = current.filter(x => x.consumed > 0);
+      const daysWithFood = current.filter(x => x.complete);
       const consumed = daysWithFood.length
         ? Math.round(daysWithFood.reduce((s, x) => s + x.consumed, 0) / daysWithFood.length)
         : 0;
@@ -244,7 +246,8 @@ export default function CaloriesHistory({ onBack }) {
 
   const last30 = data.slice(-30);
   const kpiData = kpiDays === 7 ? data.slice(-7) : last30;
-  const daysWithData = kpiData.filter(d => d.consumed > 0);
+  // Only fully logged days say anything about intake (backend: services/logging_status.py)
+  const daysWithData = kpiData.filter(d => d.complete);
   // Burned is known for every day; consumed only for days with logged food
   const avgBurned = kpiData.length ? Math.round(kpiData.reduce((s, d) => s + d.burned, 0) / kpiData.length) : null;
   const avgConsumed = daysWithData.length ? Math.round(daysWithData.reduce((s, d) => s + d.consumed, 0) / daysWithData.length) : null;
@@ -274,7 +277,8 @@ export default function CaloriesHistory({ onBack }) {
         <>
           <div className="grid grid-cols-2 gap-2">
             <KPI label="Avg burned" value={avgBurned ? `${avgBurned.toLocaleString()} kcal` : null} />
-            <KPI label="Avg consumed" value={avgConsumed ? `${avgConsumed.toLocaleString()} kcal` : null} />
+            <KPI label="Avg consumed" value={avgConsumed ? `${avgConsumed.toLocaleString()} kcal` : null}
+              sub={`${daysWithData.length} of ${kpiData.length} days fully logged`} />
           </div>
 
           <CalendarHeatmap data={data} onNeedDays={(n) => setHistoryDays(d => Math.max(d, n))} />

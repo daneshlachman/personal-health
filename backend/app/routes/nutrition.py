@@ -116,3 +116,58 @@ def delete_nutrition(log_id):
     db.session.delete(log)
     db.session.commit()
     return jsonify({"deleted": log_id})
+
+
+def _day_status(user_id, day):
+    from app.models import NutritionDayStatus
+    from app.routes.profile import _latest_weight
+    from app.services.energy import energy_for
+    from app.services.logging_status import auto_complete, is_complete, COMPLETE_FRACTION
+    consumed = round(sum(l.calories or 0 for l in NutritionLog.query.filter_by(user_id=user_id, date=day).all()))
+    burned = energy_for(user_id, day, _latest_weight())["tdee"]
+    row = NutritionDayStatus.query.filter_by(user_id=user_id, date=day).first()
+    override = row.complete if row else None
+    return {
+        "date": day.isoformat(),
+        "consumed": consumed,
+        "burned": burned,
+        "threshold": round(COMPLETE_FRACTION * burned),
+        "auto_complete": auto_complete(consumed, burned),
+        "override": override,
+        "complete": is_complete(consumed, burned, override),
+    }
+
+
+@nutrition_bp.route("/nutrition/day-status", methods=["GET"])
+def get_day_status():
+    user = _ensure_user()
+    try:
+        day = date.fromisoformat(request.args.get("date", local_today().isoformat()))
+    except ValueError:
+        return jsonify({"error": "Invalid date format, use YYYY-MM-DD"}), 400
+    return jsonify(_day_status(user.id, day))
+
+
+@nutrition_bp.route("/nutrition/day-status", methods=["PUT"])
+def put_day_status():
+    """Mark a day as fully logged (true) or not (false); null returns it to the automatic rule."""
+    from app.models import NutritionDayStatus
+    user = _ensure_user()
+    body = request.get_json(silent=True) or {}
+    try:
+        day = date.fromisoformat(body.get("date", ""))
+    except ValueError:
+        return jsonify({"error": "date (YYYY-MM-DD) is required"}), 400
+    complete = body.get("complete")
+    if complete not in (True, False, None):
+        return jsonify({"error": "complete must be true, false or null"}), 400
+    row = NutritionDayStatus.query.filter_by(user_id=user.id, date=day).first()
+    if complete is None:
+        if row:
+            db.session.delete(row)
+    elif row:
+        row.complete = complete
+    else:
+        db.session.add(NutritionDayStatus(user_id=user.id, date=day, complete=complete))
+    db.session.commit()
+    return jsonify(_day_status(user.id, day))

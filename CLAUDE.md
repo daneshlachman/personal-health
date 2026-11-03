@@ -142,6 +142,7 @@ BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.028 kcal × gewicht/70 (net
 - Stappen = Whoop `step_count` minus Garmin workout-stappen (die zitten al in workout kcal).
 - Vandaag: BMR+TEF geschaald op tijd van de dag, stappen tot nu toe tellen volledig; dag-schatting gebruikt max(stappen nu, 14-daags gemiddelde).
 - Geen Whoop stappen → 14-daags gemiddelde → profiel `avg_daily_steps` → 10.000.
+- Volledig gelogde dag (`services/logging_status.py`): gelogd ≥ 60% van het verbruik, of handmatig gezet (`nutrition_day_status`, `GET/PUT /api/nutrition/day-status`). Alleen die dagen tellen mee in gemiddelden, saldo (`balance` is anders `null`), kalenderkleur, kalibratie en chat-context.
 - Controle: `/api/calories/calibration` vergelijkt met de gewichtstrend (gemiddelde intake op volledig gelogde dagen − helling gewicht × 7700). Alleen een voorstel; wordt niet automatisch toegepast.
 
 ## Claude

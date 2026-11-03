@@ -186,6 +186,7 @@ Today's nutrition so far: {nutrition_str}
 
     # Nutrition history (last 7 days) — only when rich context needed
     if rich:
+        from app.routes.nutrition import _day_status
         nutrition_history_lines = []
         for i in range(6, 0, -1):
             d = today - timedelta(days=i)
@@ -196,7 +197,8 @@ Today's nutrition so far: {nutrition_str}
                 c    = round(sum(n.carbs_g or 0 for n in logs))
                 f    = round(sum(n.fat_g or 0 for n in logs))
                 day_name = d.strftime("%A")
-                nutrition_history_lines.append(f"{d} ({day_name}): {kcal} kcal | P {p}g C {c}g F {f}g")
+                partial = "" if _day_status(user_id, d)["complete"] else " (NOT fully logged — ignore for intake trends)"
+                nutrition_history_lines.append(f"{d} ({day_name}): {kcal} kcal | P {p}g C {c}g F {f}g{partial}")
         if nutrition_history_lines:
             context += "\nNutrition last 7 days:\n" + "\n".join(nutrition_history_lines)
 

@@ -81,6 +81,17 @@ class NutritionLog(db.Model):
         }
 
 
+
+class NutritionDayStatus(db.Model):
+    """Manual override of whether a day's food log is complete (see services/logging_status.py)."""
+    __tablename__ = "nutrition_day_status"
+    __table_args__ = (db.UniqueConstraint("user_id", "date", name="uq_nutrition_day_status_user_date"),)
+
+    id = db.Column(db.String(36), primary_key=True, default=_uuid)
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    complete = db.Column(db.Boolean, nullable=False)
+
 class WhoopData(db.Model):
     __tablename__ = "whoop_data"
 

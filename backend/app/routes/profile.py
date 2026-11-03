@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from app import db
 from app.models import WeightLog, Workout, NutritionLog, UserProfile
 from app.routes.chat import _ensure_user
+from app.services.logging_status import is_complete, auto_complete, overrides
 from app.services.energy import day_energy, energy_for, local_today, steps_by_day, typical_steps, TYPICAL_STEPS_WINDOW_DAYS
 
 profile_bp = Blueprint("profile", __name__)
@@ -108,6 +109,7 @@ def _calorie_days(days: int) -> list[dict]:
     for n in nutrition:
         consumed_by_day[n.date] = consumed_by_day.get(n.date, 0) + (n.calories or 0)
 
+    manual = overrides(USER_ID, start, today)
     result = []
     current = start + timedelta(days=1)
     while current <= today:
@@ -117,11 +119,16 @@ def _calorie_days(days: int) -> list[dict]:
         )
         burned = energy["tdee"]  # full-day value (for today: the estimate)
         consumed = round(consumed_by_day.get(current, 0))
+        complete = is_complete(consumed, burned, manual.get(current))
         result.append({
             "date": current.isoformat(),
             "burned": burned,
             "consumed": consumed,
-            "balance": consumed - burned if consumed > 0 else None,
+            # Incomplete days have no meaningful balance: they'd show a fake deficit
+            "complete": complete,
+            "auto_complete": auto_complete(consumed, burned),
+            "override": manual.get(current),
+            "balance": consumed - burned if complete else None,
         })
         current += timedelta(days=1)
     return result
@@ -135,7 +142,6 @@ def calories_history():
 CALIBRATION_DAYS = 28
 MIN_LOGGED_DAYS = 14
 MIN_WEIGHINS = 6
-MIN_LOGGED_KCAL = 1200  # below this a day was probably only partly logged
 KCAL_PER_KG = 7700
 
 
@@ -143,12 +149,13 @@ KCAL_PER_KG = 7700
 def calories_calibration():
     """Check the burned estimate against reality: the weight trend says what the real
     average balance was, so real burn = average intake - weight change x 7700 kcal/kg.
-    Only fully logged days count for intake; today is left out (still being logged)."""
+    Only fully logged days count for intake (services/logging_status.py); today is left
+    out (still being logged)."""
     days = int(request.args.get("days", CALIBRATION_DAYS))
     today = local_today()
     since = today - timedelta(days=days)
     rows = [r for r in _calorie_days(days) if r["date"] < today.isoformat()]
-    logged = [r for r in rows if r["consumed"] >= MIN_LOGGED_KCAL]
+    logged = [r for r in rows if r["complete"]]
     weights = (
         WeightLog.query.filter(WeightLog.user_id == USER_ID, WeightLog.date > since)
         .order_by(WeightLog.date).all()
