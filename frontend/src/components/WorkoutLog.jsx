@@ -44,14 +44,23 @@ function toLocalISO(date) {
   return `${y}-${m}-${d}`;
 }
 
-// Month grid, or a single week row when weekStart (a Monday) is given
+const WEEKS_SHOWN = 2;
+
+// Monday of the week before `d`, so `d` falls in the second (latest) row
+function twoWeekStart(d) {
+  const m = getMonday(d);
+  m.setDate(m.getDate() - 7 * (WEEKS_SHOWN - 1));
+  return m;
+}
+
+// Month grid, or two week rows when weekStart (a Monday) is given
 function CalendarMonth({ year, month, weekStart, workoutsByDate, onDayClick, selectedDate }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const cells = [];
   if (weekStart) {
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 7 * WEEKS_SHOWN; i++) {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
       cells.push(d);
@@ -372,7 +381,7 @@ export default function WorkoutLog() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [calView, setCalView] = useState("week");
-  const [weekStart, setWeekStart] = useState(() => getMonday(now));
+  const [weekStart, setWeekStart] = useState(() => twoWeekStart(now));
 
   const fetchWorkouts = () => {
     setLoading(true);
@@ -425,7 +434,7 @@ export default function WorkoutLog() {
 
   const shiftWeek = (n) => {
     const d = new Date(weekStart);
-    d.setDate(d.getDate() + 7 * n);
+    d.setDate(d.getDate() + 7 * WEEKS_SHOWN * n);
     setWeekStart(d);
     setSelectedDate(null);
   };
@@ -441,13 +450,13 @@ export default function WorkoutLog() {
       const inView = (d) => d.getFullYear() === viewYear && d.getMonth() === viewMonth;
       const ref = selectedDate ? new Date(selectedDate + "T12:00:00")
         : inView(now) ? now : new Date(viewYear, viewMonth, 1);
-      setWeekStart(getMonday(ref));
+      setWeekStart(twoWeekStart(ref));
     }
     setCalView(view);
   };
 
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setDate(weekEnd.getDate() + 7 * WEEKS_SHOWN - 1);
   const fmtShort = (d) => d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
 
   const displayedWorkouts = workoutsByDate[selectedDate] || [];
@@ -460,9 +469,9 @@ export default function WorkoutLog() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => switchView(calView === "week" ? "month" : "week")}
-            className="text-xs bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium w-16"
+            className="text-xs bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium w-20"
           >
-            {calView === "week" ? "Week" : "Maand"}
+            {calView === "week" ? "2 weken" : "Maand"}
           </button>
           <button
             onClick={syncAll} disabled={syncing}
