@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { API } from "../utils/api";
 import { toDecimal } from "../utils/decimal";
 import { cachedFetch, setCache } from "../utils/cache";
@@ -380,42 +380,49 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   const unit = amountMatch ? amountMatch[2] : "";
 
   const fmt = (n) => String(+n.toFixed(1));
+  const num = (v) => parseFloat(String(v).replace(",", ".")) || 0;
 
-  // Amount changed → scale everything proportionally
+  // Values the kcal field scales from; reset whenever amount or a macro is edited directly
+  const kcalBase = useRef({ kcal: entry.calories ?? 0, p: entry.protein_g ?? 0, c: entry.carbs_g ?? 0, f: entry.fat_g ?? 0 });
+
+  // Amount changed → scale the logged values proportionally (kcal included: recomputing it
+  // from the rounded macros drifts away from the logged value)
   const onAmount = (val) => {
     setAmount(val);
-    const newA = parseFloat(val) || 0;
+    const newA = num(val);
     if (baseAmount && baseAmount > 0 && newA > 0) {
       const ratio = newA / baseAmount;
-      const newP = (entry.protein_g ?? 0) * ratio;
-      const newC = (entry.carbs_g ?? 0) * ratio;
-      const newF = (entry.fat_g ?? 0) * ratio;
-      setProtein(fmt(newP));
-      setCarbs(fmt(newC));
-      setFat(fmt(newF));
-      setKcal(String(Math.round(newP * 4 + newC * 4 + newF * 9)));
+      const next = { kcal: (entry.calories ?? 0) * ratio, p: (entry.protein_g ?? 0) * ratio,
+                     c: (entry.carbs_g ?? 0) * ratio, f: (entry.fat_g ?? 0) * ratio };
+      kcalBase.current = next;
+      setProtein(fmt(next.p));
+      setCarbs(fmt(next.c));
+      setFat(fmt(next.f));
+      setKcal(String(Math.round(next.kcal)));
     }
   };
 
   // Macro changed → recalculate kcal
   const onMacro = (field, val, setter) => {
     setter(val);
-    const p = field === "p" ? (parseFloat(val) || 0) : (parseFloat(protein) || 0);
-    const c = field === "c" ? (parseFloat(val) || 0) : (parseFloat(carbs) || 0);
-    const f = field === "f" ? (parseFloat(val) || 0) : (parseFloat(fat) || 0);
-    setKcal(String(Math.round(p * 4 + c * 4 + f * 9)));
+    const p = field === "p" ? num(val) : num(protein);
+    const c = field === "c" ? num(val) : num(carbs);
+    const f = field === "f" ? num(val) : num(fat);
+    const k = p * 4 + c * 4 + f * 9;
+    kcalBase.current = { kcal: k, p, c, f };
+    setKcal(String(Math.round(k)));
   };
 
-  // Kcal changed → scale macros proportionally
+  // Kcal changed → scale macros by the same factor as the kcal
   const onKcal = (val) => {
     setKcal(val);
-    const newK = parseFloat(val) || 0;
-    const curK = (parseFloat(protein) || 0) * 4 + (parseFloat(carbs) || 0) * 4 + (parseFloat(fat) || 0) * 9;
-    if (curK > 0 && newK > 0) {
-      const ratio = newK / curK;
-      setProtein(fmt((parseFloat(protein) || 0) * ratio));
-      setCarbs(fmt((parseFloat(carbs) || 0) * ratio));
-      setFat(fmt((parseFloat(fat) || 0) * ratio));
+    const newK = num(val);
+    const base = kcalBase.current;
+    if (base.kcal > 0 && newK > 0) {
+      const ratio = newK / base.kcal;
+      setProtein(fmt(base.p * ratio));
+      setCarbs(fmt(base.c * ratio));
+      setFat(fmt(base.f * ratio));
     }
   };
 
@@ -425,6 +432,10 @@ function EditEntryModal({ entry, onClose, onSaved }) {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        // Keep the amount in the description in sync, so the next edit scales from it
+        ...(amountMatch && amount && amount !== amountMatch[1] && {
+          description: entry.description.replace(amountMatch[0], `${amount}${amountMatch[0].includes(" ") ? " " : ""}${unit}`),
+        }),
         calories: parseFloat(kcal) || 0,
         protein_g: parseFloat(protein) || 0,
         carbs_g: parseFloat(carbs) || 0,
