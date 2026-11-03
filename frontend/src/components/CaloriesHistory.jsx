@@ -86,7 +86,7 @@ function CalendarHeatmap({ data, onNeedDays }) {
         <div className="flex items-center gap-2 text-[10px] text-gray-400">
           <span className="w-3 h-3 rounded-sm bg-green-500 inline-block" /> Deficit
           <span className="w-3 h-3 rounded-sm bg-orange-500 inline-block ml-1" /> Surplus
-          <span className="w-3 h-3 rounded-sm bg-gray-100 inline-block ml-1" /> Not logged
+          <span className="w-3 h-3 rounded-sm bg-gray-100 inline-block ml-1" /> NA
         </div>
       </div>
       <div className="grid grid-cols-7 mb-1">
