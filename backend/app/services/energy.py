@@ -84,8 +84,8 @@ def day_energy(day: date, weight_kg: float, steps: int | None, typical: int, wor
         fraction = (now.hour * 60 + now.minute) / (24 * 60)
         if measured:
             steps_kcal_now = step_kcal(non_workout_steps, weight_kg)
-            # Full day: at least what you've done, at least a typical day
-            full_day_steps = max(non_workout_steps, typical - w_steps, 0)
+            # Full day: the steps done so far, no assumption about the rest of the day
+            full_day_steps = non_workout_steps
         else:
             steps_kcal_now = fraction * step_kcal(non_workout_steps, weight_kg)
             full_day_steps = non_workout_steps

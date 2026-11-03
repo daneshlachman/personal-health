@@ -145,11 +145,9 @@ function CalendarHeatmap({ data, onNeedDays }) {
 
 // BMR + digestion + steps + workouts (+ weight-trend correction) = burned
 // Steps inside Garmin workouts are already in the workout kcal, so they're left out here.
-// Today's burn is a full-day estimate: at least a typical day's steps.
 function stepsLabel(b, isToday) {
   const counted = Math.max(0, b.steps - (b.workout_steps || 0));
   const parts = [counted.toLocaleString() + (isToday ? " so far" : "")];
-  if (isToday && b.full_day_steps > counted) parts.push(`full day est. ${b.full_day_steps.toLocaleString()}`);
   if (b.steps_source === "estimate") parts.push("est.");
   if (b.workout_steps) parts.push(`excl. ${b.workout_steps.toLocaleString()} in workouts`);
   return `Steps (${parts.join(", ")})`;

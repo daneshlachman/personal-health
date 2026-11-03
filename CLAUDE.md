@@ -140,7 +140,7 @@ Eén berekening in `backend/app/services/energy.py` (Dashboard, calorie-historie
 BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.028 kcal × gewicht/70 (netto loopkosten) + workout kcal.
 - Workout kcal is netto: device-kcal minus (BMR+TEF) per minuut × duur, want rust zit al in BMR. Bij overlap telt Garmin > Hevy (4 kcal/kg/uur) > Whoop (Whoop onderschat krachttraining flink).
 - Stappen = Whoop `step_count` minus Garmin workout-stappen (die zitten al in workout kcal).
-- Vandaag: BMR+TEF geschaald op tijd van de dag, stappen tot nu toe tellen volledig; dag-schatting gebruikt max(stappen nu, 14-daags gemiddelde).
+- Vandaag: BMR+TEF geschaald op tijd van de dag, stappen tot nu toe tellen volledig; dag-schatting (`tdee`) gebruikt ook alleen de stappen tot nu toe (geen aanname voor de rest van de dag).
 - Geen Whoop stappen → 14-daags gemiddelde → profiel `avg_daily_steps` → 10.000.
 - Volledig gelogde dag (`services/logging_status.py`): gelogd ≥ 60% van het verbruik, of handmatig gezet (`nutrition_day_status`, `GET/PUT /api/nutrition/day-status`). Alleen die dagen tellen mee in gemiddelden, saldo (`balance` is anders `null`), kalenderkleur, kalibratie en chat-context.
 - Adaptief: `/api/calories/calibration` (`_calibration`) vergelijkt de ruwe schatting (`burned_raw`/`tdee_raw`) met de gewichtstrend (intake op volledige dagen − helling × 7700). `refresh_tdee_factor()` slaat dat hooguit wekelijks op als `user_profiles.tdee_factor` (begrensd 0,75–1,15; scheduled sync of bij openen van Calories). `day_energy(..., factor)` vermenigvuldigt `tdee`/`burned_now` ermee; uit te zetten in Settings (`adaptive_tdee`).
