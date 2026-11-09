@@ -43,6 +43,7 @@ Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-fr
 |--------|------|--------------|----------|
 | GET | `/api/nutrition?date={YYYY-MM-DD}` | — | `[{id, date, meal_type, description, calories, protein_g, carbs_g, fat_g}]` |
 | POST | `/api/nutrition` | `{date, meal_type, description, calories, protein_g, carbs_g, fat_g}` | created entry |
+| PUT | `/api/nutrition/{id}` | `{calories?, protein_g?, carbs_g?, fat_g?, description?, meal_type?}` | updated entry (meal_type: lang indrukken + slepen in de app) |
 | DELETE | `/api/nutrition/{id}` | — | `{deleted: id}` |
 | GET | `/api/nutrition/frequent?meal={meal}` | — | items van de laatste 21 dagen (+ `count`, `meal_count`), deze maaltijd eerst |
 

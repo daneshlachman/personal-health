@@ -520,7 +520,7 @@ function EditEntryModal({ entry, onClose, onSaved }) {
   );
 }
 
-function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog, onPhoto }) {
+function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog, onPhoto, onPressItem, drag }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const photoRef = useRef();
 
@@ -541,7 +541,7 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog, onPho
   );
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm">
+    <div data-meal={meal} className={`bg-white rounded-2xl shadow-sm transition-shadow ${drag && drag.over === meal && drag.entry.meal_type !== meal ? "ring-2 ring-brand-500" : ""}`}>
       <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex justify-between items-center rounded-t-2xl">
         <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
           {MEAL_LABELS[meal] || meal}
@@ -582,7 +582,9 @@ function MealSection({ meal, entries, onDelete, onAdd, onEdit, onQuickLog, onPho
       ) : (
         <ul className="divide-y divide-gray-50">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex items-start gap-2 px-4 py-2.5">
+            <li key={entry.id} onTouchStart={(e) => onPressItem(e, entry)}
+              style={{ WebkitTouchCallout: "none" }}
+              className={`flex items-start gap-2 px-4 py-2.5 select-none ${drag?.entry.id === entry.id ? "opacity-30" : ""}`}>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-800">{entry.description}</p>
                 <div className="flex gap-3 mt-0.5">
@@ -637,6 +639,74 @@ export default function NutritionLog() {
   }, []);
 
   const toggleMacro = (macro) => setShowKcal(prev => prev === macro ? null : macro);
+
+  // Long-press an item, drag it onto another meal, release to move it there
+  const pressRef = useRef(null); // {entry, date, x0, y0, timer, active, over}
+  const [drag, setDrag] = useState(null); // {entry, x, y, over} while dragging
+
+  const onPressItem = (e, entry) => {
+    const t = e.touches[0];
+    const press = { entry, date, x0: t.clientX, y0: t.clientY, active: false, over: entry.meal_type };
+    press.timer = setTimeout(() => {
+      press.active = true;
+      navigator.vibrate?.(15);
+      setDrag({ entry, x: press.x0, y: press.y0, over: entry.meal_type });
+    }, 450);
+    pressRef.current = press;
+  };
+
+  const moveEntry = (entry, meal, d) => {
+    const setMeal = (m) => setLogs((prev) => {
+      const next = prev.map((l) => (l.id === entry.id ? { ...l, meal_type: m } : l));
+      setCache(`nutrition_${d}`, next);
+      return next;
+    });
+    setMeal(meal);
+    fetch(`${API}/api/nutrition/${entry.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meal_type: meal }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(r.status); })
+      .catch((err) => { console.error(err); setMeal(entry.meal_type); });
+  };
+
+  useEffect(() => {
+    const move = (e) => {
+      const press = pressRef.current;
+      if (!press) return;
+      const t = e.touches[0];
+      if (!press.active) {
+        // Moved before the long-press fired: it's a scroll, not a drag
+        if (Math.hypot(t.clientX - press.x0, t.clientY - press.y0) > 8) {
+          clearTimeout(press.timer);
+          pressRef.current = null;
+        }
+        return;
+      }
+      e.preventDefault(); // no page scroll while dragging
+      press.over = document.elementFromPoint(t.clientX, t.clientY)?.closest("[data-meal]")?.dataset.meal ?? null;
+      setDrag({ entry: press.entry, x: t.clientX, y: t.clientY, over: press.over });
+    };
+    const end = (e) => {
+      const press = pressRef.current;
+      if (!press) return;
+      clearTimeout(press.timer);
+      pressRef.current = null;
+      if (!press.active) return;
+      e.preventDefault(); // don't let the release tap a button
+      setDrag(null);
+      if (press.over && press.over !== press.entry.meal_type) moveEntry(press.entry, press.over, press.date);
+    };
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", end, { passive: false });
+    document.addEventListener("touchcancel", end);
+    return () => {
+      document.removeEventListener("touchmove", move);
+      document.removeEventListener("touchend", end);
+      document.removeEventListener("touchcancel", end);
+    };
+  }, []);
 
   const prevDay = () => { const d = new Date(date + "T12:00:00"); d.setDate(d.getDate() - 1); setDate(toLocalISO(d)); };
   const nextDay = () => { const d = new Date(date + "T12:00:00"); d.setDate(d.getDate() + 1); setDate(toLocalISO(d)); };
@@ -768,8 +838,20 @@ export default function NutritionLog() {
             onEdit={(entry) => setEditEntry(entry)}
             onQuickLog={() => { setQuickLogPhoto(null); setQuickLogMeal(meal); }}
             onPhoto={(photo) => { setQuickLogPhoto(photo); setQuickLogMeal(meal); }}
+            onPressItem={onPressItem}
+            drag={drag}
           />
         ))
+      )}
+
+      {drag && (
+        <div className="fixed z-50 pointer-events-none bg-white rounded-xl shadow-xl border border-gray-200 px-3 py-2 max-w-[70vw]"
+          style={{ left: drag.x, top: drag.y, transform: "translate(-50%, -130%)" }}>
+          <p className="text-sm text-gray-800 truncate">{drag.entry.description}</p>
+          <p className="text-[11px] text-gray-400">
+            {drag.over && drag.over !== drag.entry.meal_type ? `→ ${MEAL_LABELS[drag.over] || drag.over}` : "Drag to another meal"}
+          </p>
+        </div>
       )}
 
       {addingTo && (

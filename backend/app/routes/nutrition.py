@@ -106,6 +106,7 @@ def update_nutrition(log_id):
     if "carbs_g"    in body: log.carbs_g    = body["carbs_g"]
     if "fat_g"      in body: log.fat_g      = body["fat_g"]
     if "description" in body: log.description = body["description"]
+    if body.get("meal_type"): log.meal_type = body["meal_type"]
     db.session.commit()
     return jsonify(log.to_dict())
 
