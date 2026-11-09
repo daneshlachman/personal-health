@@ -207,6 +207,7 @@ Today's nutrition so far: {nutrition_str}
         raw_workouts = (
             Workout.query
             .filter_by(user_id=user_id)
+            .filter(Workout.hidden.isnot(True))
             .order_by(Workout.date.desc())
             .limit(20)
             .all()

@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
+from app import db
 from app.models import Workout
 from app.routes.chat import _ensure_user
 from app.services.energy import local_today
@@ -80,12 +81,23 @@ def get_workouts():
     workouts = (
         Workout.query
         .filter_by(user_id=user.id)
+        .filter(Workout.hidden.isnot(True))
         .order_by(Workout.date.desc())
         .limit(limit)
         .all()
     )
     # One entry per session: the same workout often arrives from Garmin, Hevy and Whoop
     return jsonify([_workout_with_exercises(w) for w in dedupe_workouts(workouts)])
+
+
+@workouts_bp.route("/workouts/<workout_id>", methods=["DELETE"])
+def hide_workout(workout_id):
+    """Remove a workout from the app. Hidden rather than deleted: sync would re-add it."""
+    user = _ensure_user()
+    workout = Workout.query.filter_by(id=workout_id, user_id=user.id).first_or_404()
+    workout.hidden = True
+    db.session.commit()
+    return jsonify({"hidden": workout_id})
 
 
 MAX_RECOMMENDATIONS_PER_DAY = 5
@@ -121,7 +133,6 @@ def _sync_sources(user_id):
         try:
             run()
         except Exception as e:  # noqa: BLE001 - one source failing shouldn't stop the others
-            from app import db
             db.session.rollback()
             current_app.logger.warning(f"Pre-advice {name} sync failed: {e}")
 
@@ -140,7 +151,6 @@ def _generate_recommendation(user_id, target):
     """Sync all sources, then generate advice under the daily cap. Returns (body, status).
     Only ever called on an explicit user action — never automatically."""
     from sqlalchemy import text
-    from app import db
     from app.models import TrainingRecommendation
     from app.services.coach import recommend_training, CoachError
 

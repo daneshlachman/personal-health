@@ -123,6 +123,6 @@ def energy_for(user_id: str, day: date, weight_kg: float) -> dict:
     """Convenience wrapper that loads steps and workouts for a single day."""
     window_start = day - timedelta(days=TYPICAL_STEPS_WINDOW_DAYS)
     known = steps_by_day(user_id, window_start, day)
-    workouts = Workout.query.filter_by(user_id=user_id, date=day).all()
+    workouts = Workout.query.filter_by(user_id=user_id, date=day).filter(Workout.hidden.isnot(True)).all()
     return day_energy(day, weight_kg, known.get(day), typical_steps(user_id, day, known), workouts,
                       factor=current_factor(user_id))

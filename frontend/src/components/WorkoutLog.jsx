@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "../utils/api";
-import { cachedFetch } from "../utils/cache";
+import { cachedFetch, setCache, invalidateCachePrefix } from "../utils/cache";
 import TrainingAdvice from "./TrainingAdvice";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -306,8 +306,9 @@ function GarminStats({ raw, workoutId }) {
   );
 }
 
-function WorkoutCard({ workout }) {
+function WorkoutCard({ workout, onRemove }) {
   const hasExercises = workout.exercises?.length > 0;
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm px-4 py-3 space-y-2">
@@ -320,9 +321,17 @@ function WorkoutCard({ workout }) {
             {hasExercises && ` · ${workout.exercises.length} oefeningen`}
           </p>
         </div>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${SOURCE_COLOR[workout.source] || "bg-gray-100 text-gray-500"}`}>
-          {SOURCE_LABEL[workout.source] || workout.source}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SOURCE_COLOR[workout.source] || "bg-gray-100 text-gray-500"}`}>
+            {SOURCE_LABEL[workout.source] || workout.source}
+          </span>
+          {confirming ? (
+            <button onClick={() => onRemove(workout)} className="text-xs text-white bg-red-500 px-2 py-0.5 rounded-full font-medium">Verwijderen?</button>
+          ) : (
+            <button onClick={() => { setConfirming(true); setTimeout(() => setConfirming(false), 3000); }}
+              className="text-gray-300 hover:text-red-500 text-xl leading-none">×</button>
+          )}
+        </div>
       </div>
 
       {workout.source === "garmin" && <GarminStats raw={workout.raw_json} workoutId={workout.id} />}
@@ -401,6 +410,18 @@ export default function WorkoutLog() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  // Hidden on the server (stays hidden after a sync); left out of burn numbers too
+  const removeWorkout = (w) => {
+    setWorkouts((prev) => {
+      const next = prev.filter((x) => x.id !== w.id);
+      setCache("workouts_list", next);
+      return next;
+    });
+    fetch(`${API}/api/workouts/${w.id}`, { method: "DELETE" })
+      .then(() => invalidateCachePrefix("tdee"))
+      .catch((err) => { console.error(err); fetchWorkouts(); });
   };
 
   // Already deduplicated by the backend (one entry per session: Garmin > Hevy > Whoop)
@@ -487,7 +508,7 @@ export default function WorkoutLog() {
         </div>
       ) : (
         <div className="space-y-2">
-          {displayedWorkouts.map((w) => <WorkoutCard key={w.id} workout={w} />)}
+          {displayedWorkouts.map((w) => <WorkoutCard key={w.id} workout={w} onRemove={removeWorkout} />)}
         </div>
       )}
     </div>

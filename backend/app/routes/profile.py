@@ -131,7 +131,8 @@ def _calorie_days(days: int) -> list[dict]:
     known_steps = steps_by_day(USER_ID, start - timedelta(days=TYPICAL_STEPS_WINDOW_DAYS), today)
 
     workouts = Workout.query.filter(
-        Workout.user_id == USER_ID, Workout.date >= start, Workout.date <= today
+        Workout.user_id == USER_ID, Workout.date >= start, Workout.date <= today,
+        Workout.hidden.isnot(True),
     ).all()
     workouts_by_day: dict = {}
     for w in workouts:

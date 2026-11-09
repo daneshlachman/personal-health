@@ -142,6 +142,9 @@ class Workout(db.Model):
     title = db.Column(db.String(255))
     duration_minutes = db.Column(db.Integer)
     raw_json = db.Column(db.JSON)
+    # Removed by the user (e.g. Whoop auto-detecting dancing on a night out). Kept, not
+    # deleted, so the next sync doesn't bring it back; left out of every list and burn number.
+    hidden = db.Column(db.Boolean)
     created_at = db.Column(db.DateTime(timezone=True), default=_now)
 
     def to_dict(self):

@@ -120,7 +120,7 @@ def build_training_context(user_id: str, target: date) -> str:
 
     workouts = (
         Workout.query.filter_by(user_id=user_id)
-        .filter(Workout.date >= start, Workout.date <= target)
+        .filter(Workout.date >= start, Workout.date <= target, Workout.hidden.isnot(True))
         .all()
     )
     workouts = sorted(dedupe_workouts(workouts), key=lambda w: w.date)

@@ -51,6 +51,7 @@ Deploy: push naar `master` → GitHub Actions (`deploy-backend.yml` / `deploy-fr
 | Method | Path | Body / Query | Response |
 |--------|------|--------------|----------|
 | GET | `/api/workouts?limit={n}` | — | `[{id, date, source, title, duration_minutes, exercises, raw_json}]`, ontdubbeld (Garmin > Hevy > Whoop op overlap) |
+| DELETE | `/api/workouts/{id}` | — | zet `hidden` (niet echt verwijderen: sync zou hem terugzetten); verborgen workouts tellen nergens mee |
 | GET | `/api/workouts/{id}/route` | — | `{points: [[lat,lon]], metrics: [{t, hr, kmh}]}` |
 
 #### Sync
