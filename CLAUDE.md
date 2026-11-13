@@ -150,7 +150,8 @@ BMR (Mifflin-St Jeor) + TEF (10% BMR) + stappen × 0.028 kcal × gewicht/70 (net
 - Voeding met foto: `POST /api/nutrition/log-ai` met optioneel `image` (data URL); tekst-hoeveelheden gaan vóór de foto.
 
 ## Claude
-- Chat + snelle voedingslog: `claude-sonnet-5-5`, effort `low`, web search `web_search_20260209`, server-side fallback; `pause_turn` wordt doorgezet (`_create_until_done` in `claude.py`).
+- Chat + snelle voedingslog: `claude-sonnet-5-5`, web search `web_search_20260209`, server-side fallback; `pause_turn` wordt doorgezet (`_create_until_done` in `claude.py`). Effort `low` voor voedingslogs (`_is_food_message`, hele woorden), `medium` voor de rest.
+- Chat-context (`build_context`): altijd volledig, niet meer afhankelijk van trefwoorden — per dag de laatste 28 dagen (verbruik met opbouw, gegeten + macro's + gelogd-status, saldo, recovery/HRV/slaap, gewicht), gewichtstrend + maandgemiddelden, geschatte intake uit gewicht, workouts met detail. Plus de chatgeschiedenis van die dag (laatste 12 berichten).
 - Trainingsadvies: `claude-opus-5-5` (`coach.py`). SDK `anthropic` 1.x.
 
 ## Open punten

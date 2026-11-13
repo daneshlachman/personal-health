@@ -10,13 +10,15 @@ from app.services.workout_utils import dedupe_workouts
 from app.services.energy import local_today
 
 MODEL = "claude-sonnet-5-5"
-MAX_HISTORY_FOOD = 0
-MAX_HISTORY_DEFAULT = 4
+# Today's conversation, so follow-ups ("and Tuesday?") know what was said
+MAX_HISTORY = 12
 
+# Messages that log food (quick, low effort). Not "kcal"/"eiwit"/"macro": those are just as
+# often analysis questions, which get more thinking.
 FOOD_KEYWORDS = {
     "gegeten", "gedronken", "geëten", "ontbijt", "lunch", "diner", "avondeten",
     "breakfast", "dinner", "snack", "ate", "drank", "drink", "eten", "drinken",
-    "kcal", "calorie", "macro", "protein", "eiwit", "gram", "portie", "brood",
+    "gram", "portie", "brood",
     "melk", "vlees", "kip", "vis", "rijst", "pasta", "groente", "fruit", "kaas",
     "ei", "eieren", "yoghurt", "shake", "supplement", "whey", "creatine",
 }
@@ -29,41 +31,19 @@ BRAND_KEYWORDS = {
     "starbucks", "dunkin",
 }
 
-WORKOUT_CONTEXT_KEYWORDS = {
-    "workout", "training", "gym", "gesport", "getrained", "krachttraining",
-    "push", "pull", "cardio", "fietsen", "hardlopen", "lopen", "zwemmen",
-    "sets", "reps", "bench", "squat", "deadlift", "spierpijn", "spier",
-    "garmin", "hevy", "oefening",
-    "hartslag", "hrv", "slaap", "sleep", "recovery", "whoop", "herstel",
-    "week", "maand", "trend", "vorige week", "gemiddeld", "statistiek",
-    "progressie", "resultaat", "verbrand", "over tijd",
-}
+def _has_keyword(text: str, keywords: set) -> bool:
+    # Whole words only: a substring test made "ei" match "eiwit", "zei", ... and "kcal"
+    # turned every energy question into a food message (which used to drop the chat history)
+    lower = text.lower()
+    return any(re.search(rf"(?<!\w){re.escape(kw.strip())}(?!\w)", lower) for kw in keywords)
 
 
 def _is_food_message(text: str) -> bool:
-    lower = text.lower()
-    return any(kw in lower for kw in FOOD_KEYWORDS)
+    return _has_keyword(text, FOOD_KEYWORDS)
 
 
 def _is_branded_food(text: str) -> bool:
-    lower = text.lower()
-    return any(kw in lower for kw in BRAND_KEYWORDS)
-
-
-def _needs_rich_context(text: str) -> bool:
-    lower = text.lower()
-    return any(kw in lower for kw in WORKOUT_CONTEXT_KEYWORDS)
-
-LONG_HISTORY_KEYWORDS = {
-    "journey", "maanden", "months", "afgelopen", "analyse", "analyzeer", "analyseer",
-    "progress", "voortgang", "long term", "lange termijn", "overzicht", "overview",
-    "history", "historisch", "gewichtsverloop", "weight loss", "afvallen",
-    "patroon", "pattern", "verloop",
-}
-
-def _needs_long_history(text: str) -> bool:
-    lower = text.lower()
-    return any(kw in lower for kw in LONG_HISTORY_KEYWORDS)
+    return _has_keyword(text, BRAND_KEYWORDS)
 
 
 def calculate_tdee(user_id: str, today: date) -> str:
@@ -85,160 +65,150 @@ def calculate_tdee(user_id: str, today: date) -> str:
     return f"~{e['tdee']} kcal full-day estimate, ~{e['burned_now']} kcal burned so far ({breakdown})"
 
 
+CONTEXT_DAYS = 28
+
+
+def _workout_line(w) -> str:
+    raw = w.raw_json or {}
+    parts = []
+    for ex in raw.get("exercises", [])[:8]:
+        sets = ex.get("sets", [])
+        if sets:
+            top = max(sets, key=lambda st: (st.get("weight_kg") or 0))
+            parts.append(f"{ex.get('title', '?')} {len(sets)} sets, top {top.get('reps')}x{top.get('weight_kg')}kg")
+    if w.source == "garmin":
+        if raw.get("distance"):
+            parts.append(f"{raw['distance'] / 1000:.1f} km")
+        if raw.get("averageHR"):
+            parts.append(f"avg HR {round(raw['averageHR'])}")
+    elif w.source == "whoop":
+        score = raw.get("score") or {}
+        if score.get("strain"):
+            parts.append(f"strain {round(score['strain'], 1)}")
+        if score.get("average_heart_rate"):
+            parts.append(f"avg HR {score['average_heart_rate']}")
+    dur = f", {w.duration_minutes} min" if w.duration_minutes else ""
+    detail = ": " + ", ".join(parts) if parts else ""
+    return f"{w.date} {w.title} ({w.source}{dur}){detail}"
+
+
 def build_context(user_id: str, user_message: str = "", target_date: date = None) -> str:
+    """Everything the coach needs, every time: a per-day table for the last 4 weeks (burn
+    with its breakdown, intake, logging status, recovery, sleep, weight), the weight trend,
+    workouts with detail and today's items. Used to be cut down by keywords in the message,
+    which left follow-up questions ("and Tuesday?") without the data to answer them."""
+    from collections import defaultdict
+    from app.routes.profile import _calorie_days, _intake_estimate
+
     today = target_date or local_today()
-    rich = _needs_rich_context(user_message)
-    long_history = _needs_long_history(user_message)
+    start = today - timedelta(days=CONTEXT_DAYS)
 
-    # Latest weight (always)
-    latest_weight = (
-        WeightLog.query.filter_by(user_id=user_id)
-        .order_by(WeightLog.date.desc()).first()
+    # Per-day energy and intake, as the app shows it (Calories screen)
+    days = {r["date"]: r for r in _calorie_days((local_today() - start).days)}
+    whoop = {w.date: w for w in WhoopData.query.filter(
+        WhoopData.user_id == user_id, WhoopData.date > start, WhoopData.date <= today)}
+    weights = {}
+    for w in WeightLog.query.filter(
+            WeightLog.user_id == user_id, WeightLog.date > start - timedelta(days=152),
+            WeightLog.date <= today).order_by(WeightLog.date, WeightLog.created_at):
+        weights[w.date] = w.weight_kg
+    macros = defaultdict(lambda: [0.0, 0.0, 0.0])
+    for n in NutritionLog.query.filter(
+            NutritionLog.user_id == user_id, NutritionLog.date > start, NutritionLog.date <= today):
+        m = macros[n.date]
+        m[0] += n.protein_g or 0
+        m[1] += n.carbs_g or 0
+        m[2] += n.fat_g or 0
+
+    lines = []
+    d = start + timedelta(days=1)
+    while d <= today:
+        r = days.get(d.isoformat())
+        cols = [f"{d} {d.strftime('%a')}"]
+        if r:
+            b = r.get("breakdown") or {}
+            parts = [f"BMR {b.get('bmr')}", f"TEF {b.get('tef')}",
+                     f"steps {b.get('steps')} = {b.get('step_kcal')}"]
+            parts += [f"{w['title']} {w['kcal']}" for w in b.get("workouts", [])]
+            if b.get("adaptive"):
+                parts.append(f"weight-trend correction {b['adaptive']}")
+            cols.append(f"burned {r['burned']} ({', '.join(parts)})")
+            if r["consumed"]:
+                p, c, f = (round(x) for x in macros[d])
+                status = "fully logged" if r["complete"] else "NOT fully logged"
+                cols.append(f"ate {r['consumed']} (P {p} C {c} F {f}, {status})")
+            else:
+                cols.append("ate: nothing logged")
+            if r["balance"] is not None:
+                cols.append(f"balance {r['balance']:+d}")
+        wd = whoop.get(d)
+        if wd:
+            cols.append(
+                f"recovery {wd.recovery_score}, HRV {wd.hrv_ms}, RHR {wd.resting_hr}, "
+                f"sleep {wd.sleep_duration_hours}h of {wd.sleep_needed_hours}h needed"
+            )
+        if d in weights:
+            cols.append(f"weight {weights[d]}kg")
+        lines.append(" | ".join(cols))
+        d += timedelta(days=1)
+
+    # Weight trend: least-squares slope over 4 weeks, monthly averages over ~6 months
+    recent = [(k, v) for k, v in weights.items() if k > start]
+    weight_lines = []
+    if len(recent) >= 2:
+        xs = [(k - start).days for k, _ in recent]
+        ys = [v for _, v in recent]
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+        var = sum((x - mx) ** 2 for x in xs)
+        slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / var if var else 0
+        weight_lines.append(
+            f"4-week trend {slope * 7:+.2f} kg/week ({len(recent)} weigh-ins, "
+            f"min {min(ys)}, max {max(ys)}, latest {ys[-1]}kg)"
+        )
+    by_month = defaultdict(list)
+    for k, v in weights.items():
+        by_month[k.strftime("%b %Y")].append(v)
+    if by_month:
+        weight_lines.append("Monthly averages: " + ", ".join(
+            f"{k} {sum(v) / len(v):.1f}kg" for k, v in by_month.items()))
+
+    est = _intake_estimate()
+    if est.get("ready") and est.get("avg_intake_unlogged_days") is not None:
+        weight_lines.append(
+            f"Intake implied by the weight trend (last {est['days']} days, unscaled burn): "
+            f"~{est['avg_intake_estimated']} kcal/day overall; logged days {est['avg_intake_logged_days']}, "
+            f"so the {est['unlogged_days']} unlogged days averaged ~{est['avg_intake_unlogged_days']} (rough)"
+        )
+
+    workouts = dedupe_workouts(
+        Workout.query.filter(Workout.user_id == user_id, Workout.date > start,
+                             Workout.date <= today, Workout.hidden.isnot(True))
+        .order_by(Workout.date).all()
     )
-    weight_str = f"{latest_weight.weight_kg}kg ({latest_weight.date})" if latest_weight else "No data"
 
-    # Weight trend — bij rich: 30d detail; bij long_history: ook 6 maanden maandgemiddelden
-    if rich or long_history:
-        lookback = timedelta(days=180) if long_history else timedelta(days=30)
-        w_since = today - lookback
-        period_weights = (
-            WeightLog.query
-            .filter(WeightLog.user_id == user_id, WeightLog.date >= w_since)
-            .order_by(WeightLog.date)
-            .all()
-        )
-        if period_weights:
-            recent_30 = [w for w in period_weights if w.date >= today - timedelta(days=30)]
-            base = recent_30 if recent_30 else period_weights
-            change = round(base[-1].weight_kg - base[0].weight_kg, 1)
-            trend = f"+{change}kg" if change > 0 else f"{change}kg"
-            weight_str = (
-                f"{base[-1].weight_kg}kg | 30d: {trend} "
-                f"(min {min(w.weight_kg for w in base)}kg, max {max(w.weight_kg for w in base)}kg)"
-            )
-            if long_history:
-                from collections import defaultdict
-                by_month = defaultdict(list)
-                for w in period_weights:
-                    by_month[w.date.strftime("%b %Y")].append(w.weight_kg)
-                monthly = ", ".join(
-                    f"{k}: {round(sum(v)/len(v),1)}kg" for k, v in by_month.items()
-                )
-                weight_str += f"\nMonthly averages (6m): {monthly}"
-
-    # Today's Whoop data (always, it's small)
-    whoop = WhoopData.query.filter_by(user_id=user_id, date=today).first()
-    whoop_str = "No data"
-    if whoop:
-        whoop_str = (
-            f"Recovery: {whoop.recovery_score}, HRV: {whoop.hrv_ms}ms, "
-            f"Resting HR: {whoop.resting_hr}bpm, Sleep: {whoop.sleep_duration_hours}h"
-        )
-
-    # Whoop trend 7 dagen — bij rich context
-    if rich:
-        week_ago = today - timedelta(days=7)
-        whoop_week = (
-            WhoopData.query
-            .filter(WhoopData.user_id == user_id, WhoopData.date >= week_ago, WhoopData.date < today)
-            .order_by(WhoopData.date)
-            .all()
-        )
-        if whoop_week:
-            recovery_scores = [w.recovery_score for w in whoop_week if w.recovery_score]
-            sleep_hours = [w.sleep_duration_hours for w in whoop_week if w.sleep_duration_hours]
-            sleep_needed = [w.sleep_needed_hours for w in whoop_week if w.sleep_needed_hours]
-            recovery_trend = ", ".join(str(s) for s in recovery_scores)
-            avg_recovery = round(sum(recovery_scores) / len(recovery_scores)) if recovery_scores else None
-            avg_sleep = round(sum(sleep_hours) / len(sleep_hours), 1) if sleep_hours else None
-            avg_needed = round(sum(sleep_needed) / len(sleep_needed), 1) if sleep_needed else None
-            sleep_deficit = round(avg_needed - avg_sleep, 1) if avg_sleep and avg_needed else None
-            whoop_str += (
-                f"\nRecovery last 7d: [{recovery_trend}] avg {avg_recovery}%"
-            )
-            if avg_sleep:
-                deficit_str = f" (deficit: {sleep_deficit}h/night)" if sleep_deficit and sleep_deficit > 0.3 else ""
-                whoop_str += f"\nSleep avg: {avg_sleep}h (needed: {avg_needed}h){deficit_str}"
-
-    # Today's nutrition — show individual items so Claude knows exactly what's already logged
     nutrition = NutritionLog.query.filter_by(user_id=user_id, date=today).all()
-    if nutrition:
-        total_cal = sum(n.calories or 0 for n in nutrition)
-        total_protein = sum(n.protein_g or 0 for n in nutrition)
-        total_carbs = sum(n.carbs_g or 0 for n in nutrition)
-        total_fat = sum(n.fat_g or 0 for n in nutrition)
-        items = ", ".join(f"{n.description} ({round(n.calories or 0)} kcal)" for n in nutrition)
-        nutrition_str = (
-            f"{round(total_cal)} kcal | P {round(total_protein)}g C {round(total_carbs)}g F {round(total_fat)}g\n"
-            f"Logged: {items}"
-        )
-    else:
-        nutrition_str = "Nothing logged yet"
+    items = ", ".join(f"{n.meal_type}: {n.description} ({round(n.calories or 0)} kcal)" for n in nutrition)
+    nl = chr(10)
 
-    tdee_str = calculate_tdee(user_id, today)
-    tdee_line = f"Estimated TDEE today: {tdee_str}"
+    return f"""Today: {today} ({today.strftime("%A")})
+Today's energy: {calculate_tdee(user_id, today)}
+Today's logged food: {items or "nothing yet"}
 
-    context = f"""Today: {today} ({today.strftime("%A")})
-Latest weight: {weight_str}
-Today's Whoop: {whoop_str}
-Today's nutrition so far: {nutrition_str}
-{tdee_line}"""
+Per day, last {CONTEXT_DAYS} days (burned = the app's estimate incl. steps and workouts; balance only for fully logged days):
+{nl.join(lines)}
 
-    # Nutrition history (last 7 days) — only when rich context needed
-    if rich:
-        from app.routes.nutrition import _day_status
-        nutrition_history_lines = []
-        for i in range(6, 0, -1):
-            d = today - timedelta(days=i)
-            logs = NutritionLog.query.filter_by(user_id=user_id, date=d).all()
-            if logs:
-                kcal = round(sum(n.calories or 0 for n in logs))
-                p    = round(sum(n.protein_g or 0 for n in logs))
-                c    = round(sum(n.carbs_g or 0 for n in logs))
-                f    = round(sum(n.fat_g or 0 for n in logs))
-                day_name = d.strftime("%A")
-                partial = "" if _day_status(user_id, d)["complete"] else " (NOT fully logged — ignore for intake trends)"
-                nutrition_history_lines.append(f"{d} ({day_name}): {kcal} kcal | P {p}g C {c}g F {f}g{partial}")
-        if nutrition_history_lines:
-            context += "\nNutrition last 7 days:\n" + "\n".join(nutrition_history_lines)
+Weight:
+{nl.join(weight_lines) or "No weigh-ins"}
 
-    # Workout details — only when relevant
-    if rich:
-        raw_workouts = (
-            Workout.query
-            .filter_by(user_id=user_id)
-            .filter(Workout.hidden.isnot(True))
-            .order_by(Workout.date.desc())
-            .limit(20)
-            .all()
-        )
-        workouts = dedupe_workouts(raw_workouts)
-        workout_lines = []
-        for w in workouts:
-            raw = w.raw_json or {}
-            exercises = raw.get("exercises", [])
-            ex_summary = []
-            for ex in exercises[:6]:
-                sets = ex.get("sets", [])
-                if sets:
-                    top_set = max(sets, key=lambda s: (s.get("weight_kg") or 0))
-                    ex_summary.append(
-                        f"{ex.get('title', '?')} {top_set.get('reps')}x{top_set.get('weight_kg')}kg"
-                    )
-            detail = ", ".join(ex_summary) if ex_summary else "no detail"
-            dur = f"{w.duration_minutes}min " if w.duration_minutes else ""
-            workout_lines.append(f"{w.date} {w.title} ({dur}{detail})")
-        workout_str = "\n".join(workout_lines) if workout_lines else "No recent workouts"
-        context += f"\nRecent workouts:\n{workout_str}"
-
-    return context
+Workouts, last {CONTEXT_DAYS} days:
+{nl.join(_workout_line(w) for w in workouts) or "None"}"""
 
 
 WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search"}
 MAX_CONTINUATIONS = 5
 
 
-def _create_until_done(client, messages: list, **kwargs) -> str:
+def _create_until_done(client, messages: list, effort: str = "low", **kwargs) -> str:
     """Run a request to completion and return its text. Web search is a server tool: a long
     search can pause the turn (pause_turn), and sending it back lets the server continue."""
     texts = []
@@ -246,8 +216,8 @@ def _create_until_done(client, messages: list, **kwargs) -> str:
         response = client.messages.create(
             model=MODEL,
             messages=messages,
-            # Chat and food extraction: low effort keeps answers quick (Sonnet 5.5 thinks by default)
-            output_config={"effort": "low"},
+            # Low effort keeps food logging quick (Sonnet 5.5 thinks by default); analysis gets more
+            output_config={"effort": effort},
             # Server-side fallback reroutes the request if the model declines it
             extra_headers={"anthropic-beta": "server-side-fallback-2026-07-01"},
             extra_body={"fallbacks": "default"},
@@ -279,9 +249,11 @@ def call_claude(user_id: str, user_message: str, context: str, target_date: date
     client = anthropic.Anthropic(api_key=current_app.config["ANTHROPIC_API_KEY"])
     is_food = _is_food_message(user_message)
     tools = [WEB_SEARCH_TOOL] if _is_branded_food(user_message) else []
-    history_limit = MAX_HISTORY_FOOD if is_food else MAX_HISTORY_DEFAULT
 
-    system_prompt = f"""You are a personal health coach with access to the user's health data. Today's snapshot:
+    system_prompt = f"""You are a personal health coach with access to the user's health data below. It is
+everything the app knows; use it instead of asking the user for numbers it already contains, and
+use the per-day "burned" values as given (don't recompute them from BMR). If something isn't in
+the data, say so plainly.
 
 {context}
 
@@ -300,16 +272,24 @@ Nutrition logging rules (follow strictly):
 - For packaged products: use web search to find the exact nutritional values, then log based on the quantity eaten.
 - Calories must match: roughly 4 kcal/g protein, 4 kcal/g carbs, 9 kcal/g fat.
 - If the user corrects a previous log, only log the correction — never re-log already saved items.
+- Only log food mentioned in the user's latest message; earlier messages are already logged.
 - If food was not eaten (e.g. "I'm planning to eat..."), do NOT log it.
 - Only log when the user explicitly says they ate/drank something.
 Respond in the same language the user writes in. Be concise and data-driven."""
 
-    history = _get_history(user_id, history_limit, target_date)
+    history = _get_history(user_id, MAX_HISTORY, target_date)
+    # The route saves the new message before calling: don't send it twice
+    if history and history[-1] == {"role": "user", "content": user_message}:
+        history.pop()
+    # The conversation has to open with a user turn
+    while history and history[0]["role"] != "user":
+        history.pop(0)
     messages = history + [{"role": "user", "content": user_message}]
 
     return _create_until_done(
         client, messages,
-        max_tokens=8000 if is_food else 4000,  # thinking counts toward max_tokens
+        effort="low" if is_food else "medium",
+        max_tokens=8000,  # thinking counts toward max_tokens
         system=system_prompt,
         tools=tools,
     )
