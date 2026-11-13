@@ -40,6 +40,12 @@ function KeyPrompt({ onSaved }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  // Tapping the tab you're on goes back to its main screen (e.g. Calories → Dashboard)
+  const [tabReset, setTabReset] = useState(0);
+  const openTab = (id) => {
+    if (id === activeTab) setTabReset((n) => n + 1);
+    setActiveTab(id);
+  };
 
   const [resumeKey, setResumeKey] = useState(0);
   const [needsKey, setNeedsKey] = useState(() => !getApiKey());
@@ -85,10 +91,14 @@ export default function App() {
     <div className="flex flex-col bg-gray-50" style={{ height: "100svh" }}>
       {/* Page content */}
       <main key={resumeKey} className="flex-1 overflow-y-auto">
-        {activeTab === "dashboard" && <Dashboard onNavigate={setActiveTab} />}
-        {activeTab === "nutrition" && <NutritionLog />}
-        {activeTab === "workouts" && <WorkoutLog />}
-        {activeTab === "chat" && <Chat />}
+        {activeTab === "dashboard" && <Dashboard key={tabReset} onNavigate={setActiveTab} />}
+        {activeTab === "nutrition" && <NutritionLog key={tabReset} />}
+        {activeTab === "workouts" && <WorkoutLog key={tabReset} />}
+        {/* Always mounted, only hidden: a question still waiting for Claude keeps its
+            "Thinking…" and its answer when you switch tabs in the meantime */}
+        <div className={activeTab === "chat" ? "h-full" : "hidden"}>
+          <Chat active={activeTab === "chat"} />
+        </div>
       </main>
 
       {/* Bottom tab bar */}
@@ -96,7 +106,7 @@ export default function App() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => openTab(tab.id)}
             className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs font-medium transition-colors ${
               activeTab === tab.id
                 ? "text-brand-600"

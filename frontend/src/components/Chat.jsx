@@ -97,7 +97,7 @@ function dateLabel(iso) {
   return new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-export default function Chat() {
+export default function Chat({ active = true }) {
   const [date, setDate] = useState(todayISO);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -127,9 +127,10 @@ export default function Chat() {
     setDate(toLocalISO(d));
   };
 
+  // Stays mounted while hidden (App), so scroll down again when the tab is opened
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (active) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, active]);
 
   const send = async () => {
     const text = input.trim();
